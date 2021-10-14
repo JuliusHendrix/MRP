@@ -63,7 +63,7 @@ P_t = 1e-2 # pressure at the top (dyne/cm^2)
 use_Kzz = True
 use_moldiff = True
 use_vz = False
-atm_type = 'file'  # Options: 'isothermal', 'analytical', 'file', or 'vulcan_ini' 'table'
+atm_type = 'analytical'  # Options: 'isothermal', 'analytical', 'file', or 'vulcan_ini' 'table'
 # TODO: pick value / value range?
 Kzz_prof = 'const' # Options: 'const','file' or 'Pfunc' (Kzz increased with P^-0.4)
 const_Kzz = 1.E10 # (cm^2/s) Only reads when use_Kzz = True and Kzz_prof = 'const'
@@ -71,7 +71,6 @@ const_Kzz = 1.E10 # (cm^2/s) Only reads when use_Kzz = True and Kzz_prof = 'cons
 K_max = 1e5        # for Kzz_prof = 'Pfunc'
 K_p_lev = 0.1      # for Kzz_prof = 'Pfunc'
 vz_prof = 'const'  # Options: 'const' or 'file'
-gs = 2140.         # surface gravity (cm/s^2)  (HD189:2140  HD209:936)
 Tiso = 1000 # only read when atm_type = 'isothermal'
 
 const_vz = 0 # (cm/s) Only reads when use_vz = True and vz_prof = 'const'
@@ -136,7 +135,7 @@ post_conden_rtol = 0.1 # switched to this value after fix_species_time
 # ====== Setting up for ouwtput and plotting ======
 # plotting:
 plot_TP = False
-use_live_plot = True
+use_live_plot = False
 use_live_flux = False
 use_plot_end = False
 use_plot_evo = False
@@ -172,3 +171,5 @@ save_evo_frq = 10
 # r_star = 0.805 # stellar radius in solar radius
 # Rp = 1.138*7.1492E9 # Planetary radius (cm) (for computing gravity)
 # orbit_radius = 0.03142 # planet-star distance in A.U.
+#
+# gs = 2140.         # surface gravity (cm/s^2)  (HD189:2140  HD209:936)
