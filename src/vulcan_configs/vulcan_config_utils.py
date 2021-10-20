@@ -21,7 +21,7 @@ def analytic_MR(M):
     """
     M_earth = u.Mjup.to(u.Mearth, M)
 
-    if M_earth.value < 120:
+    if M_earth < 120:
         # Eq. 1 https://www.aanda.org/articles/aa/pdf/2020/02/aa36482-19.pdf
         R_earth = 0.70 * M_earth ** 0.63
     else:
@@ -106,7 +106,7 @@ def make_valid_parameters(params):
 
     # calculate planet radius
     M_p = params['planet_mass']  # Mjup
-    R_p = analytic_MR(M_p)  # Rjup
+    R_p = analytic_MR(M_p.value) * u.Rjup  # Rjup
 
     R_p = R_p.cgs
     M_p = M_p.cgs
@@ -149,9 +149,7 @@ def make_valid_parameter_grid(parameter_grid, num_workers):
         results = list(tqdm(p.imap(make_valid_parameters, parameter_grid),  # return results otherwise it doesn't work properly
                             total=len(parameter_grid)))
 
-    print(np.shape(results))
     valid_parameter_grid = np.array(results).flatten()
     # remove None values
     valid_parameter_grid = valid_parameter_grid[valid_parameter_grid != np.array(None)]
-    print(np.shape(valid_parameter_grid))
     return valid_parameter_grid

@@ -9,6 +9,7 @@ from astropy.io import fits
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 output_dir = os.path.join(script_dir, 'output/')
+# TODO: change to MRP/data folder?
 pRT_input_data_path = os.path.join(script_dir, 'input_data_std/input_data')
 
 # export petitRADTRANS input path
@@ -131,7 +132,7 @@ def create_specs(TEMP_grid, save_to_txt=False):
 	'''
     MUS = read_MUSCLES()
 
-    Temps_MUS = np.array(list(MUS.values()))[:, 0]
+    Temps_MUS = np.array(list(MUS.values()), dtype=object)[:, 0]
     names_MUS = list(MUS.keys())
 
     spec_diff = np.zeros(len(TEMP_grid))

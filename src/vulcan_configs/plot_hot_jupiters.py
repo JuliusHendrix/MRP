@@ -92,6 +92,7 @@ if __name__ == "__main__":
     plt.plot(R_star, fit_func(R_star, *popt), c='y')
 
     plot_props_data('MSTAR', 'RSTAR', log=True)
-    plot_props_data('A', 'PER', log=True)
+    a, per = plot_props_data('A', 'PER', log=True)
+    print(np.min(a), np.max(a))
     plot_props_data('A', 'MASS', log=True)
     plot_props_data('MSTAR', 'A', log=True)

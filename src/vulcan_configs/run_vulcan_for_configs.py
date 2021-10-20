@@ -3,8 +3,8 @@ import os
 import sys
 from tqdm import tqdm
 import shutil
-import time
 from contextlib import contextmanager
+import multiprocessing as mp
 
 # to suppress output
 # from https://stackoverflow.com/questions/2125702/how-to-suppress-console-output-in-python
@@ -19,6 +19,18 @@ def suppress_stdout():
             sys.stdout = old_stdout
 
 
+def run_vulcan(params):
+    (config_file, VULCAN_dir) = params
+    # copy config file to VULCAN directory
+    shutil.copyfile(config_file, os.path.join(VULCAN_dir, 'vulcan_cfg.py'))
+
+    # run VULCAN
+    with suppress_stdout():
+        exec(open(os.path.join(VULCAN_dir, "vulcan.py")).read())
+
+    return 0
+
+
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     configs_dir = os.path.join(script_dir, 'configs')
@@ -30,18 +42,13 @@ def main():
 
     config_files = glob.glob(os.path.join(configs_dir, '*.py'))
 
-    # TODO: VULCAN not parallelizing on ALICE, so maybe parallelize here.
+    mp_params = [(cf, VULCAN_dir) for cf in config_files]
+    num_workers = mp.cpu_count() - 1
+
     print('running VULCAN for configs...')
-    for config_file in tqdm(config_files):
-        # copy config file to VULCAN directory
-        start = time.time()
-        shutil.copyfile(config_file, os.path.join(VULCAN_dir, 'vulcan_cfg.py'))
-
-        # run VULCAN
-        with suppress_stdout():
-            exec(open(os.path.join(VULCAN_dir, "vulcan.py")).read())
-
-        print(f'one run takes: {time.time() - start} s')
+    with mp.Pool(num_workers) as p:
+        results = list(tqdm(p.imap(run_vulcan, mp_params),  # return results otherwise it doesn't work properly
+                            total=len(mp_params)))
 
 
 if __name__ == "__main__":

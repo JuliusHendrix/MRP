@@ -55,7 +55,7 @@ def make_config(mp_params):
                          f"gs = {gs}"
 
         file.write(text_to_append)
-    return 1
+    return 0
 
 
 def main():
@@ -66,7 +66,7 @@ def main():
     num_workers = mp.cpu_count() - 1
 
     parameter_ranges = dict(
-        orbit_radius=np.linspace(0.01, 10, 10) * u.AU,    # AU, circular orbit
+        orbit_radius=np.linspace(0.01, 0.1, 10) * u.AU,    # AU, circular orbit
         planet_mass=np.linspace(0.5, 20, 10) * u.Mjup,    # Mjup
         r_star=np.linspace(1, 1.5, 10) * u.Rsun,   # Rsun
     )
