@@ -32,7 +32,6 @@ TEMP_grid = np.linspace(3000,6000,61)
 au = 1.4959787e13
 r_sun = 6.957e10
 
-
 # Functions to open and save hdf5 files
 def save_dict_to_hdf5(dic, filename):
     with h5py.File(filename, 'w') as h5file:
@@ -126,7 +125,7 @@ def read_MUSCLES():
     return MUS
 
 
-def create_specs(TEMP_grid, save_to_txt=False):
+def create_specs(TEMP_grid, save_to_txt=False, multiprocessing_lock=None):
     '''
 		Function to create the stellar spectra with
 	'''
@@ -208,10 +207,12 @@ def create_specs(TEMP_grid, save_to_txt=False):
                     break
                 new_str += str(wavs[j]) + '\t' + str(flux[j]) + '\n'
 
-            txt_file = os.path.join(output_dir, '{0}_K.txt'.format(T))
+            txt_file = os.path.join(output_dir, f'{T}_K.txt')
 
-            with open(txt_file, 'a') as f:
-                f.write(new_str)
+            if not os.path.isfile(txt_file):
+                with open(txt_file, 'w') as f:
+                    f.write(new_str)
+
     return txt_file
 
 

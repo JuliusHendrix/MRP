@@ -14,7 +14,6 @@ sys.path.append(os.path.join(script_dir, stellar_dir))
 
 from CreateSpecGrid import create_specs
 
-
 def analytic_MR(M):
     """
     M in Mjup, R in R_jup
@@ -102,7 +101,6 @@ def make_valid_parameters(params):
     # calcualte effective temperature
     R_star = params['r_star']  # Rsun
     T_eff = effective_temperature(R_star)  # K
-    T_eff = round(T_eff.value, 2)
 
     # calculate planet radius
     M_p = params['planet_mass']  # Mjup
@@ -127,11 +125,11 @@ def make_valid_parameters(params):
         return None
 
     # create spectra
-    sflux_file = create_specs([T_eff], save_to_txt=True)  # in list because that's what Amy's function uses
+    sflux_file = create_specs([T_eff.value], save_to_txt=True)  # in list because that's what Amy's function uses
 
     # append to valid parameters
     valid_params = dict(
-        T_eff=T_eff,
+        T_eff=T_eff.value,
         T_irr=T_irr.value,
         sflux_file=str(sflux_file),
         r_star=R_star.value,
@@ -143,8 +141,10 @@ def make_valid_parameters(params):
     return valid_params
 
 
+
 def make_valid_parameter_grid(parameter_grid, num_workers):
     print('making valid parameter grid...')
+
     with mp.Pool(num_workers) as p:
         results = list(tqdm(p.imap(make_valid_parameters, parameter_grid),  # return results otherwise it doesn't work properly
                             total=len(parameter_grid)))

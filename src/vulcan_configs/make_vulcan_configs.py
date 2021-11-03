@@ -32,7 +32,7 @@ def make_config(mp_params):
     Rp = params["Rp"]
     gs = params["gs"]
 
-    # name unique name
+    # give unique name
     config_name = f'{orbit_radius}_{r_star}_{T_eff}_{T_irr}_{Rp}_{gs}'
     config_filename = f'{configs_dir}/vulcan_cfg_{config_name}.py'
     output_name = f'output_{config_name}.vul'
@@ -59,31 +59,32 @@ def make_config(mp_params):
 
 
 def main():
+    # setup directories
     script_dir = os.path.dirname(os.path.abspath(__file__))
     configs_dir = os.path.join(script_dir, 'configs')
-    output_dir = os.path.join(script_dir, 'vulcan_output')
-    output_dir_vulcan = '../git/MRP/vulcan_configs/vulcan_output/'    # vulcan needs a relative dir...
+    output_dir_vulcan = '../../MRP/data/vulcan_output/'    # vulcan needs a relative dir...
     num_workers = mp.cpu_count() - 1
 
+    # setup parameter ranges and intervals
     parameter_ranges = dict(
-        orbit_radius=np.linspace(0.01, 0.1, 10) * u.AU,    # AU, circular orbit
-        planet_mass=np.linspace(0.5, 20, 10) * u.Mjup,    # Mjup
-        r_star=np.linspace(1, 1.5, 10) * u.Rsun,   # Rsun
+        orbit_radius=np.linspace(0.01, 0.1, 50) * u.AU,    # AU, circular orbit
+        planet_mass=np.linspace(0.5, 20, 50) * u.Mjup,    # Mjup
+        r_star=np.linspace(1, 1.5, 50) * u.Rsun,   # Rsun   # values same as fit
     )
 
+    # create parameter grid of valid configurations
     parameter_grid = ParameterGrid(parameter_ranges)
     valid_parameter_grid = make_valid_parameter_grid(parameter_grid, num_workers)
 
+    # remake the config directory
     if os.path.isdir(configs_dir):
         shutil.rmtree(configs_dir)
     os.mkdir(configs_dir)
 
-    if os.path.isdir(output_dir):
-        shutil.rmtree(output_dir)
-    os.mkdir(output_dir)
-
+    # make the mp parameters
     mp_params = [(params, configs_dir, output_dir_vulcan) for params in valid_parameter_grid]
 
+    # run mp Pool
     print('generating vulcan_cfg files...')
     with mp.Pool(num_workers) as p:
         results = list(tqdm(p.imap(make_config, mp_params),    # return results otherwise it doesn't work properly
