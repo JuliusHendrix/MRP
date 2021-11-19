@@ -129,7 +129,8 @@ dmypy.json
 .pyre/
 
 src/stellar_spectra/input_data_std/
-src/stellar_spectra/output
+src/stellar_spectra/output/
+src/stellar_spectra/stellar_specs/
 src/vulcan_configs/configs/
 .idea
 
