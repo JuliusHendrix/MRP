@@ -130,6 +130,6 @@ dmypy.json
 
 src/stellar_spectra/input_data_std/
 src/vulcan_configs/configs/
-src/vulcan_configs/output/
 .idea
 
+data
