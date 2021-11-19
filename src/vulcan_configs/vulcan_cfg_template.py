@@ -109,9 +109,15 @@ use_print_delta = False
 print_prog_num = 500  # print the progress every x steps
 dttry = 1.E-10
 trun_min = 1e2
+
 runtime = 1.E16
 dt_min = 1.E-14
 dt_max = runtime*1e-5
+
+# runtime = 1.E2
+# dt_min = 1
+# dt_max = 10
+
 dt_var_max = 2.
 dt_var_min = 0.5
 count_min = 120
@@ -150,7 +156,7 @@ plot_spec = ['H2O', 'H', 'CH4', 'CO', 'CO2', 'C2H2', 'HCN', 'NH3' ]
 # output:
 output_humanread = False
 use_shark = False
-save_evolution = False   # save the evolution of chemistry (y_time and t_time) for every save_evo_frq step
+save_evolution = True   # save the evolution of chemistry (y_time and t_time) for every save_evo_frq step
 save_evo_frq = 10
 
 # parameters that need to be changed
@@ -173,3 +179,4 @@ save_evo_frq = 10
 # orbit_radius = 0.03142 # planet-star distance in A.U.
 #
 # gs = 2140.         # surface gravity (cm/s^2)  (HD189:2140  HD209:936)
+

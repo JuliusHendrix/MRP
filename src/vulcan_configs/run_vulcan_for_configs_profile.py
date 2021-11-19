@@ -10,9 +10,8 @@ from multiprocessing.managers import BaseManager
 import random
 import time
 from contextlib import redirect_stdout, redirect_stderr
+import cProfile
 import psutil
-from pathlib import Path
-import argparse
 
 # TODO: don't know if this is nescessary
 # Limiting the number of threads
@@ -26,10 +25,7 @@ class CopyManager:
 
     def __init__(self, num_workers, VULCAN_dir):
         self.VULCAN_dir = VULCAN_dir
-
-        git_dir = str(Path(VULCAN_dir).parents[0])
-
-        self.copies_base_dir = os.path.join(git_dir, 'vulcans')
+        self.copies_base_dir = os.path.expanduser('~/git/vulcans/')
 
         # create VULCAN copies and save their directories
         self.available_copies = self.make_initial_copies(num_workers)
@@ -110,9 +106,6 @@ def run_vulcan(params):
         f'\nwith {os.path.basename(config_file)}\n'
     )
 
-    # set this for vulcan.py
-    sys.argv[0] = os.path.join(available_dir, 'vulcan.py')
-
     # save output to file
     with open(std_output_file, 'a+') as f:
         with redirect_stdout(f):
@@ -136,14 +129,27 @@ def run_vulcan(params):
     return duration
 
 
-def main(batch_size, parallel, workers):
+# make profile file for all workers
+def profile_worker(mp_params):
+    # extract parameters
+    (i, cf, mp_copy_manager, std_output_dir, profile_dir) = mp_params
+    params = (cf, mp_copy_manager, std_output_dir)
+
+    # profiling
+    profile_file = os.path.join(profile_dir, f'profile-{i}.out')
+
+    print(f'profiling in {profile_file}...')
+    cProfile.runctx('run_vulcan(params)', globals(), locals(), profile_file)
+
+
+def main(batch=False, batch_size=100, parallel=True):
     # setup directories
     script_dir = os.path.dirname(os.path.abspath(__file__))
     configs_dir = os.path.join(script_dir, 'configs/')
-    git_dir = str(Path(script_dir).parents[2])
-    VULCAN_dir = os.path.join(git_dir, 'VULCAN')
-    output_dir = os.path.join(git_dir, 'MRP/data/vulcan_output')
+    VULCAN_dir = os.path.expanduser('~/git/VULCAN/')
+    output_dir = os.path.expanduser('~/git/MRP/data/vulcan_output')
     std_output_dir = os.path.join(output_dir, 'std_output/')
+    profile_dir = os.path.join(script_dir, f'profile_{batch_size}_workers/')
 
     # remake output directory
     if os.path.isdir(output_dir):
@@ -155,22 +161,24 @@ def main(batch_size, parallel, workers):
         shutil.rmtree(std_output_dir)
     os.mkdir(std_output_dir)
 
+    # remake profiling directory
+    if os.path.isdir(profile_dir):
+        shutil.rmtree(profile_dir)
+    os.mkdir(profile_dir)
+
     # load config files
     config_files = glob.glob(os.path.join(configs_dir, 'vulcan_cfg*.py'))
     print(f'found {len(config_files)} config files')
 
     # create random batch of config files
-    if batch_size:
+    if batch:
         print(f'using random batch of {batch_size} configs')
         batch_files = random.sample(config_files, batch_size)
         config_files = batch_files
 
     if parallel:
         # number of processes
-        if workers:
-            num_workers = workers
-        else:
-            num_workers = mp.cpu_count() - 1
+        num_workers = batch_size
 
         # setup copy manager
         BaseManager.register('CopyManager', CopyManager)
@@ -179,14 +187,12 @@ def main(batch_size, parallel, workers):
         mp_copy_manager = manager.CopyManager(num_workers, VULCAN_dir)
 
         # make mp params
-        mp_params = [(cf, mp_copy_manager, std_output_dir) for cf in config_files]
+        mp_params = [(i, cf, mp_copy_manager, std_output_dir, profile_dir) for i, cf in enumerate(config_files)]
 
         # run mp Pool
         print(f'running VULCAN for configs with {num_workers} workers...')
         with mp.get_context("spawn").Pool(processes=num_workers) as pool:
-            results = list(tqdm(pool.imap(run_vulcan, mp_params),  # return results otherwise it doesn't work properly
-                                total=len(mp_params)))
-            print(f'{len(config_files)} configuration took on average {np.mean(results)} minutes.')
+            results = list(pool.imap(profile_worker, mp_params))
 
     else:
         # if sequential, only 1 copy
@@ -199,17 +205,9 @@ def main(batch_size, parallel, workers):
 
 
 if __name__ == "__main__":
-    # parse arguments
-    parser = argparse.ArgumentParser(description='Run the vulcan configurations')
-    parser.add_argument('-w', '--workers', help='Number of multiprocessing-subprocesses', type=int, default=None,
-                        required=False)
-    parser.add_argument('-b', '--batch', help='Number of random configuration files', type=int, default=None,
-                        required=False)
-    parser.add_argument('-p', '--parallel', help='Wether to use multiprocessing', type=bool, default=True,
-                        required=False)
-    args = vars(parser.parse_args())
+    batch_sizes = [8]
 
-    # run main
-    main(batch_size=args['batch'],
-         parallel=args['parallel'],
-         workers=args['workers'])
+    for batch_size in batch_sizes:
+        main(batch=True,
+             batch_size=batch_size,
+             parallel=True)

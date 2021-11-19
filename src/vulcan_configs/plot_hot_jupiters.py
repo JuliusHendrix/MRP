@@ -19,9 +19,6 @@ print(names)
 print(units)
 
 
-
-
-
 def read_prop_data(properties):
     props_data = []
     props_units = []

@@ -67,9 +67,9 @@ def main():
 
     # setup parameter ranges and intervals
     parameter_ranges = dict(
-        orbit_radius=np.linspace(0.01, 0.1, 50) * u.AU,    # AU, circular orbit
-        planet_mass=np.linspace(0.5, 20, 50) * u.Mjup,    # Mjup
-        r_star=np.linspace(1, 1.5, 50) * u.Rsun,   # Rsun   # values same as fit
+        orbit_radius=np.linspace(0.01, 0.5, 10) * u.AU,    # AU, circular orbit
+        planet_mass=np.linspace(0.5, 5, 10) * u.Mjup,    # Mjup
+        r_star=np.linspace(1, 1.5, 10) * u.Rsun,   # Rsun   # values same as fit
     )
 
     # create parameter grid of valid configurations
