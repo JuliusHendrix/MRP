@@ -6,7 +6,7 @@ import glob
 
 
 def inspect_vul():
-    vulcan_file_dir = os.path.expanduser('~/git/MRP/data/vulcan_output_parallel/')
+    vulcan_file_dir = os.path.expanduser('/data/vulcan_output_parallel/')
 
     vulcan_files = glob.glob(os.path.join(vulcan_file_dir, '*.vul'))
 

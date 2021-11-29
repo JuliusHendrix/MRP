@@ -65,7 +65,7 @@ class CopyManager:
             available_copy = self.available_copies[0]
             self.available_copies.remove(available_copy)
         else:
-            available_copy = None
+            raise ValueError('No copies available!')
 
         return available_copy
 
@@ -84,12 +84,7 @@ def run_vulcan(params):
     (config_file, copy_manager, std_output_dir) = params
 
     # get available VULCAN dir copy
-    available_dir = None
-    while available_dir is None:
-        available_dir = copy_manager.get_available_copy()
-        if available_dir is None:
-            print('copy dir not available')
-            time.sleep(1)
+    available_dir = copy_manager.get_available_copy()
 
     # change working directory of this process
     os.chdir(available_dir)
@@ -119,10 +114,21 @@ def run_vulcan(params):
             with redirect_stderr(f):
                 start = time.time()  # start timer
 
-                # run VULCAN
-                if 'vulcan' in sys.modules.keys():  # checks if vulcan has been imported already,
-                    importlib.reload(vulcan)  # and if so, it reimports
+                # checks if vulcan has been imported already, because importing it runs the code
+                if 'vulcan' in sys.modules.keys():
+                    # reload vulcan submodules
+                    loaded_modules = [k for k in sys.modules.keys()]
+                    for m in loaded_modules:
+                        if m == 'vulcan':
+                            continue
+                        elif m.startswith('vulcan'):
+                            print(f'reload {m}')
+                            importlib.reload(sys.modules[m])
+
+                    # import vulcan to run it
+                    importlib.reload(sys.modules['vulcan'])
                 else:
+                    # import vulcan to run it
                     import vulcan
 
                 # exec(open(os.path.join(available_dir, "vulcan.py")).read())    # run VULCAN
@@ -133,17 +139,23 @@ def run_vulcan(params):
     # add VULCAN dir copy back to list
     copy_manager.add_used_copy(available_dir)
 
+    # print info
+    print(
+        f'exiting'
+        f'\n{mp.current_process()}\n'
+    )
+
     return duration
 
 
 def main(batch_size, parallel, workers):
     # setup directories
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    configs_dir = os.path.join(script_dir, 'configs/')
     git_dir = str(Path(script_dir).parents[2])
     VULCAN_dir = os.path.join(git_dir, 'VULCAN')
     output_dir = os.path.join(git_dir, 'MRP/data/vulcan_output')
-    std_output_dir = os.path.join(output_dir, 'std_output/')
+    configs_dir = os.path.join(git_dir, 'MRP/data/configs')
+    std_output_dir = os.path.join(output_dir, 'std_output')
 
     # remake output directory
     if os.path.isdir(output_dir):

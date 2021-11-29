@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from astropy import units as u
 from scipy.optimize import curve_fit
 
-from vulcan_config_utils import analytic_MR
+from src.vulcan_configs.vulcan_config_utils import analytic_MR
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 csv_path = '../../data/hotjupiters.csv'

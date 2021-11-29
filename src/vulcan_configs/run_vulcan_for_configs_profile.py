@@ -145,9 +145,9 @@ def profile_worker(mp_params):
 def main(batch=False, batch_size=100, parallel=True):
     # setup directories
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    configs_dir = os.path.join(script_dir, 'configs/')
+    configs_dir = os.path.join(script_dir, '../../data/configs/')
     VULCAN_dir = os.path.expanduser('~/git/VULCAN/')
-    output_dir = os.path.expanduser('~/git/MRP/data/vulcan_output')
+    output_dir = os.path.expanduser('/data/vulcan_output')
     std_output_dir = os.path.join(output_dir, 'std_output/')
     profile_dir = os.path.join(script_dir, f'profile_{batch_size}_workers/')
 

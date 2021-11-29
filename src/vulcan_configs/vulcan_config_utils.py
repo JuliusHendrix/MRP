@@ -8,11 +8,8 @@ from astropy import units as u
 import multiprocessing as mp
 from tqdm import tqdm
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-stellar_dir = '../stellar_spectra/'
-sys.path.append(os.path.join(script_dir, stellar_dir))
+from src.stellar_spectra.CreateSpecGrid import create_specs
 
-from CreateSpecGrid import create_specs
 
 def analytic_MR(M):
     """

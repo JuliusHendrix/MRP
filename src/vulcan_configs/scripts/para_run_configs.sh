@@ -2,8 +2,8 @@
 #PBS -S /bin/tcsh
 #PBS -j oe
 #PBS -q para
-#PBS -l nodes=1:ppn=20
-#PBS -l walltime=24:00:00
+#PBS -l nodes=1:ppn=64
+#PBS -l walltime=48:00:00
 
 # mail alert at start, end and abortion of execution
 #PBS -m bea

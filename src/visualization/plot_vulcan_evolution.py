@@ -77,7 +77,7 @@ def plot_evolution(params):
 def main():
     # setup paths
     # output_dir = os.path.expanduser('/data/vulcan_output_parallel/')
-    output_dir = os.path.expanduser('~/git/MRP/data/vulcan_output_parallel/')
+    output_dir = os.path.expanduser('/data/vulcan_output_parallel/')
     plot_base_dir = os.path.join(output_dir, 'plots/')
     plot_dir = os.path.join(plot_base_dir, 'evolution/')
 

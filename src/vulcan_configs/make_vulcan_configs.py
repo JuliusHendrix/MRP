@@ -3,6 +3,7 @@ import glob
 import os
 import shutil
 from sklearn.model_selection import ParameterGrid
+from pathlib import Path
 from tqdm import tqdm
 import multiprocessing as mp
 from astropy import units as u
@@ -17,7 +18,7 @@ def make_config(mp_params):
 
     Args:
         mp_params: (tuple) (params, configs_dir, output_dir)
-
+data
     Returns:
 
     """
@@ -61,7 +62,8 @@ def make_config(mp_params):
 def main():
     # setup directories
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    configs_dir = os.path.join(script_dir, 'configs')
+    MRP_dir = str(Path(script_dir).parents[1])
+    configs_dir = os.path.join(MRP_dir, 'data/configs')
     output_dir_vulcan = '../../MRP/data/vulcan_output/'    # vulcan needs a relative dir...
     num_workers = mp.cpu_count() - 1
 
