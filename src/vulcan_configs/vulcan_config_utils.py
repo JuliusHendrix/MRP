@@ -1,14 +1,17 @@
 import os
 import sys
 import numpy as np
-import vulcan_cfg_template
 import scipy
 from astropy import constants as c
 from astropy import units as u
 import multiprocessing as mp
 from tqdm import tqdm
+from pathlib import Path
+import shutil
 
-from src.stellar_spectra.CreateSpecGrid import create_specs
+# own module
+import vulcan_cfg_template as vulcan_cfg_template
+from ..stellar_spectra.CreateSpecGrid import create_specs
 
 
 def analytic_MR(M):
@@ -94,7 +97,9 @@ def effective_temperature(R_s):
     return 5.58049869e+03 * R_s ** 3.48859155e-01
 
 
-def make_valid_parameters(params):
+def make_valid_parameters(mp_params):
+    (params, sflux_dir) = mp_params
+
     # calcualte effective temperature
     R_star = params['r_star']  # Rsun
     T_eff = effective_temperature(R_star)  # K
@@ -122,7 +127,7 @@ def make_valid_parameters(params):
         return None
 
     # create spectra
-    sflux_file = create_specs([T_eff.value], save_to_txt=True)  # in list because that's what Amy's function uses
+    sflux_file = create_specs([T_eff.value], output_dir=sflux_dir, save_to_txt=True)  # in list because that's what Amy's function uses
 
     # append to valid parameters
     valid_params = dict(
@@ -138,15 +143,77 @@ def make_valid_parameters(params):
     return valid_params
 
 
-
-def make_valid_parameter_grid(parameter_grid, num_workers):
+def make_valid_parameter_grid(parameter_grid, num_workers, sflux_dir):
     print('making valid parameter grid...')
 
+    mp_params = [(params, sflux_dir) for params in parameter_grid]
+
     with mp.Pool(num_workers) as p:
-        results = list(tqdm(p.imap(make_valid_parameters, parameter_grid),  # return results otherwise it doesn't work properly
-                            total=len(parameter_grid)))
+        results = list(tqdm(p.imap(make_valid_parameters, mp_params),  # return results otherwise it doesn't work properly
+                            total=len(mp_params)))
 
     valid_parameter_grid = np.array(results).flatten()
     # remove None values
     valid_parameter_grid = valid_parameter_grid[valid_parameter_grid != np.array(None)]
     return valid_parameter_grid
+
+
+class CopyManager:
+    """
+    Manage available VULCAN copies for multiprocessing.
+    """
+
+    def __init__(self, num_workers, VULCAN_dir):
+        self.VULCAN_dir = VULCAN_dir
+
+        git_dir = str(Path(VULCAN_dir).parents[0])
+
+        self.copies_base_dir = os.path.join(git_dir, 'vulcans')
+
+        # create VULCAN copies and save their directories
+        self.available_copies = self.make_initial_copies(num_workers)
+
+    def make_initial_copies(self, num_workers):
+        """
+        Make num_workers copies of the VULCAN directory.
+        """
+        print(f'making {num_workers} copies of VULCAN...')
+
+        # remake the folder
+        if os.path.isdir(self.copies_base_dir):
+            shutil.rmtree(self.copies_base_dir)
+        os.mkdir(self.copies_base_dir)
+
+        # make list of all available dirs
+        copy_dir_list = []
+
+        # make copies
+        for i in tqdm(range(num_workers)):
+            copy_dir = os.path.join(self.copies_base_dir, f'VULCAN_{i}')
+            shutil.copytree(self.VULCAN_dir, copy_dir)
+            copy_dir_list.append(copy_dir)
+
+        return copy_dir_list
+
+    def get_available_copy(self):
+        """
+        Get a copy directory from the list of available directories
+        """
+
+        if len(self.available_copies) > 0:
+            available_copy = self.available_copies[0]
+            self.available_copies.remove(available_copy)
+        else:
+            raise ValueError('No copies available!')
+
+        return available_copy
+
+    def add_used_copy(self, used_copy):
+        """
+        Add a directory to the list of available directories
+        """
+
+        if used_copy not in self.available_copies:
+            self.available_copies.append(used_copy)
+        else:
+            raise ValueError(f'{used_copy} already in available_copies!')

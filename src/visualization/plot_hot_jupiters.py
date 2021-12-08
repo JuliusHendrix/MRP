@@ -1,11 +1,14 @@
 import numpy as np
 import pandas as pd
 import os
+import sys
 import matplotlib.pyplot as plt
 from astropy import units as u
 from scipy.optimize import curve_fit
+from pathlib import Path
 
-from src.vulcan_configs.vulcan_config_utils import analytic_MR
+# own modules
+from ..vulcan_configs.vulcan_config_utils import analytic_MR
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 csv_path = '../../data/hotjupiters.csv'

@@ -14,70 +14,12 @@ import psutil
 from pathlib import Path
 import argparse
 
+# own module
+from vulcan_config_utils import CopyManager
+
 # TODO: don't know if this is nescessary
 # Limiting the number of threads
 os.environ["OMP_NUM_THREADS"] = "1"
-
-
-class CopyManager:
-    """
-    Manage available VULCAN copies for multiprocessing.
-    """
-
-    def __init__(self, num_workers, VULCAN_dir):
-        self.VULCAN_dir = VULCAN_dir
-
-        git_dir = str(Path(VULCAN_dir).parents[0])
-
-        self.copies_base_dir = os.path.join(git_dir, 'vulcans')
-
-        # create VULCAN copies and save their directories
-        self.available_copies = self.make_initial_copies(num_workers)
-
-    def make_initial_copies(self, num_workers):
-        """
-        Make num_workers copies of the VULCAN directory.
-        """
-        print(f'making {num_workers} copies of VULCAN...')
-
-        # remake the folder
-        if os.path.isdir(self.copies_base_dir):
-            shutil.rmtree(self.copies_base_dir)
-        os.mkdir(self.copies_base_dir)
-
-        # make list of all available dirs
-        copy_dir_list = []
-
-        # make copies
-        for i in tqdm(range(num_workers)):
-            copy_dir = os.path.join(self.copies_base_dir, f'VULCAN_{i}')
-            shutil.copytree(self.VULCAN_dir, copy_dir)
-            copy_dir_list.append(copy_dir)
-
-        return copy_dir_list
-
-    def get_available_copy(self):
-        """
-        Get a copy directory from the list of available directories
-        """
-
-        if len(self.available_copies) > 0:
-            available_copy = self.available_copies[0]
-            self.available_copies.remove(available_copy)
-        else:
-            raise ValueError('No copies available!')
-
-        return available_copy
-
-    def add_used_copy(self, used_copy):
-        """
-        Add a directory to the list of available directories
-        """
-
-        if used_copy not in self.available_copies:
-            self.available_copies.append(used_copy)
-        else:
-            raise ValueError(f'{used_copy} already in available_copies!')
 
 
 def run_vulcan(params):

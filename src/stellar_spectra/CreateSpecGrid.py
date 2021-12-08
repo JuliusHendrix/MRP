@@ -8,17 +8,11 @@ import shutil
 from astropy.io import fits
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-output_dir = os.path.join(script_dir, 'output/')
-# TODO: change to MRP/data folder?
+
 pRT_input_data_path = os.path.join(script_dir, 'input_data_std/input_data')
 
 # export petitRADTRANS input path
 os.environ["pRT_input_data_path"] = str(pRT_input_data_path)
-
-# create output dir
-if os.path.isdir(output_dir):
-    shutil.rmtree(output_dir)
-os.mkdir(output_dir)
 
 sys.path.append(os.path.join(script_dir, '../petitRADTRANS-master/'))
 from petitRADTRANS import Radtrans
@@ -26,11 +20,12 @@ from petitRADTRANS import nat_cst as nc
 import h5py
 
 # Setting the temperature range 
-TEMP_grid = np.linspace(3000,6000,61)
+TEMP_grid = np.linspace(3000, 6000, 61)
 
 # Constants
 au = 1.4959787e13
 r_sun = 6.957e10
+
 
 # Functions to open and save hdf5 files
 def save_dict_to_hdf5(dic, filename):
@@ -68,7 +63,7 @@ def specs_list():
 		Reading in MUSCLES star characteristics
 	'''
 
-    file = '../stellar_spectra/MUSCLES_stars.dat'
+    file = os.path.join(script_dir, 'MUSCLES_stars.dat')
 
     dat = open(file, 'r')
 
@@ -125,10 +120,11 @@ def read_MUSCLES():
     return MUS
 
 
-def create_specs(TEMP_grid, save_to_txt=False, multiprocessing_lock=None):
+def create_specs(TEMP_grid, output_dir, save_to_txt=False):
     '''
 		Function to create the stellar spectra with
 	'''
+
     MUS = read_MUSCLES()
 
     Temps_MUS = np.array(list(MUS.values()), dtype=object)[:, 0]
