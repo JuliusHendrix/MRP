@@ -38,7 +38,7 @@ class AutoEncoder(nn.Module):
 
         # decoders
         self.latent_decoder_linear = nn.Sequential(
-            nn.Linear(512, 543),
+            nn.Linear(512, 543),    # [b, 543]
             nn.ReLU()
         )
 
@@ -47,29 +47,81 @@ class AutoEncoder(nn.Module):
             nn.ReLU()
         )
 
+        self.height_decoder = nn.Sequential(
+            nn.ConvTranspose2d(8, 4, kernel_size=(4,3), stride=(2,2), padding=(0,0)),    # [b, 4, 36, 17]
+            nn.ReLU(),
+            nn.ConvTranspose2d(4, 2, kernel_size=(4, 3), stride=(2, 2), padding=(0, 0)),  # [b, 2, 74, 35]
+            nn.ReLU(),
+            nn.ConvTranspose2d(2, 1, kernel_size=(4, 4), stride=(2, 2), padding=(0, 0)),  # [b, 1, 150, 72]
+            nn.ReLU()
+        )
+
+        self.flux_decoder = nn.Sequential(
+            nn.Linear(1088, 2500),    # [b, 2500]
+            nn.ReLU()
+        )
+
+        self.constants_decoder = nn.Sequential(
+            nn.Linear(1088, 1),    # [b, 1]
+            nn.ReLU()
+        )
+
     def encode(self, height_arr, top_flux, const):
-        height_arr = height_arr[:, None, :, :]  # add image channel [batch, 1, 150, 72]
+        # encode height array
+        height_arr = height_arr[:, None, :, :]  # add image channel [b, 1, 150, 72]
         encoded_height_arr = self.height_encoder(height_arr)  # [b, 1088]
 
+        # encode flux array
         encoded_flux = self.flux_encoder(top_flux)  # [b, 1088]
 
+        # encode constants
         const = const[:, None].double()    # [b, 1]
         encoded_const = self.constants_encoder(const)  # [b, 1088]
 
+        # concatenate encoded
         concat_encoded = torch.cat(
             (encoded_height_arr[:, None, :], encoded_flux[:, None, :], encoded_const[:, None, :]),  # [b, 3, 1088]
             dim=1
         )
 
+        # create latent
         concat_encoded = concat_encoded[:, None, :, :]  # [b, 1, 3, 1088]
         latent = self.latent_encoder(concat_encoded)  # [b, 512]
 
         return latent
 
     def decode(self, latent):
-        concat_encoded_linear = self.latent_decoder_linear(latent)
+        # decode latent into encoded components
+        concat_encoded_linear = self.latent_decoder_linear(latent)    # [b, 543]
 
-        return 0,0,0
+        b, linear_length = concat_encoded_linear.shape
+
+        # add two dimensions for convolutional layer
+        concat_encoded_linear = concat_encoded_linear.reshape(shape=(b, 1, 1, linear_length))    # [b, 1, 1, 543]
+
+        concat_decoded_conv = self.latent_decoder_conv(concat_encoded_linear)    # [b, 1, 3, 1088]
+        _, _, _, conv_length = concat_decoded_conv.shape
+        concat_decoded_conv = concat_decoded_conv.reshape(shape=(b, 3, conv_length))    # [b, 3, 1088]
+
+        # separate out components
+        encoded_height_arr, encoded_flux, encoded_const = torch.split(concat_decoded_conv,
+                                                                      split_size_or_sections=1,
+                                                                      dim=1)    # 3x [b, 1, 1088]
+
+        # decode height array
+        encoded_height_arr = encoded_height_arr.reshape(shape=(b, 8, 17, 8))    # [b, 8, 17, 8]
+        decoded_height_arr = self.height_decoder(encoded_height_arr)
+        decoded_height_arr = decoded_height_arr.reshape(shape=(b, 150, 72))
+
+        # decode flux array
+        encoded_flux = encoded_flux.reshape(shape=(b, conv_length))    # [b, 1088]
+        decoded_flux = self.flux_decoder(encoded_flux)    # [b, 2500]
+
+        # decode constants array
+        encoded_const = encoded_const.reshape(shape=(b, conv_length))    # [b, 1088]
+        decoded_const = self.constants_decoder(encoded_const)    # [b, 1]
+
+        return decoded_height_arr, decoded_flux, decoded_const
 
     def forward(self, height_arr, top_flux, const):
         # encode
