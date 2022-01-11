@@ -14,3 +14,7 @@ jupyter
 pandas
 sympy
 nose
+torch
+torchvision
+torchaudio
+tensorboard

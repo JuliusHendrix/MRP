@@ -8,9 +8,12 @@ from scipy.optimize import curve_fit
 from pathlib import Path
 
 # own modules
-from ..vulcan_configs.vulcan_config_utils import analytic_MR
-
 script_dir = os.path.dirname(os.path.abspath(__file__))
+src_dir = str(Path(script_dir).parents[1])
+sys.path.append(src_dir)
+
+from src.vulcan_configs.vulcan_config_utils import analytic_MR
+
 csv_path = '../../data/hotjupiters.csv'
 HJ_df = pd.read_csv(os.path.join(script_dir, csv_path))
 

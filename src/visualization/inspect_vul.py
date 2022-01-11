@@ -3,12 +3,18 @@ import numpy as np
 import pickle
 import os
 import glob
-
+from pathlib import Path
 
 def inspect_vul():
-    vulcan_file_dir = os.path.expanduser('/data/vulcan_output_parallel/')
+    # setup directories
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    MRP_dir = str(Path(script_dir).parents[1])
+    vulcan_file_dir = os.path.join(MRP_dir, 'data/christmas_dataset/vulcan_output')
+
+    # vulcan_file_dir = os.path.expanduser('/data/christmas_dataset/vulcan_output/')
 
     vulcan_files = glob.glob(os.path.join(vulcan_file_dir, '*.vul'))
+    print(f'{len(vulcan_files) = }')
 
     vulcan_file = np.random.choice(vulcan_files)
 
@@ -25,7 +31,7 @@ def inspect_vul():
 
     ins_data = data['variable']['y_time']
 
-    print(ins_data)
+    # print(ins_data)
     print(ins_data.shape)
     print(type(ins_data))
 

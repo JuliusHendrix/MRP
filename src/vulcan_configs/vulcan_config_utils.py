@@ -9,9 +9,12 @@ from tqdm import tqdm
 from pathlib import Path
 import shutil
 
-# own module
-import vulcan_cfg_template as vulcan_cfg_template
-from ..stellar_spectra.CreateSpecGrid import create_specs
+# own modules
+script_dir = os.path.dirname(os.path.abspath(__file__))
+src_dir = str(Path(script_dir).parents[1])
+sys.path.append(src_dir)
+
+import src.vulcan_configs.vulcan_cfg_template as vulcan_cfg_template
 
 
 def analytic_MR(M):
@@ -98,6 +101,8 @@ def effective_temperature(R_s):
 
 
 def make_valid_parameters(mp_params):
+    from src.stellar_spectra.CreateSpecGrid import create_specs
+
     (params, sflux_dir) = mp_params
 
     # calcualte effective temperature
@@ -123,7 +128,7 @@ def make_valid_parameters(mp_params):
     (Tco, Pco) = calculate_TP(gs.value, TP_params)
 
     # check if valid
-    if np.max(Tco) > 3000 or np.min(Tco) < 500:
+    if np.max(Tco) > 2500 or np.min(Tco) < 500:
         return None
 
     # create spectra
@@ -136,6 +141,7 @@ def make_valid_parameters(mp_params):
         sflux_file=str(sflux_file),
         r_star=R_star.value,
         Rp=R_p.value,
+        planet_mass=params['planet_mass'].value,
         orbit_radius=a.value,
         gs=gs.value
     )

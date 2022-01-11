@@ -8,7 +8,7 @@ from tqdm import tqdm
 import multiprocessing as mp
 from astropy import units as u
 
-from vulcan_config_utils import *
+from vulcan_config_utils import make_valid_parameter_grid
 
 
 def make_config(mp_params):
@@ -32,9 +32,10 @@ data
     T_irr = params["T_irr"]
     Rp = params["Rp"]
     gs = params["gs"]
+    planet_mass = params["planet_mass"]
 
     # give unique name
-    config_name = f'{orbit_radius}_{r_star}_{T_eff}_{T_irr}_{Rp}_{gs}'
+    config_name = f'{orbit_radius}_{r_star}_{planet_mass}'
     config_filename = f'{configs_dir}/vulcan_cfg_{config_name}.py'
     output_name = f'output_{config_name}.vul'
 
@@ -53,7 +54,8 @@ data
                          f"r_star = {r_star}\n" \
                          f"Rp = {Rp}\n" \
                          f"orbit_radius = {orbit_radius}\n" \
-                         f"gs = {gs}"
+                         f"gs = {gs}\n" \
+                         f"planet_mass = {planet_mass}"
 
         file.write(text_to_append)
     return 0
@@ -80,9 +82,9 @@ def main():
 
     # setup parameter ranges and intervals
     parameter_ranges = dict(
-        orbit_radius=np.linspace(0.01, 0.5, 10) * u.AU,    # AU, circular orbit
-        planet_mass=np.linspace(0.5, 5, 10) * u.Mjup,    # Mjup
-        r_star=np.linspace(1, 1.5, 10) * u.Rsun,   # Rsun   # values same as fit
+        orbit_radius=np.linspace(0.01, 0.5, 20) * u.AU,    # AU, circular orbit
+        planet_mass=np.linspace(0.5, 5, 20) * u.Mjup,    # Mjup
+        r_star=np.linspace(1, 1.5, 20) * u.Rsun,   # Rsun   # values same as fit
     )
 
     # create parameter grid of valid configurations

@@ -6,131 +6,164 @@ class AutoEncoder(nn.Module):
     def __init__(self):
         super().__init__()
 
-        # encoders
+        # ENCODERS
         # TODO: pooling?
-        self.height_encoder = nn.Sequential(    # [batch, 1, 150, 72]
-            nn.Conv2d(1, 2, kernel_size=(4,4), stride=(2,2), padding=(0,0)),    # [batch, 2, 74, 35]
-            nn.ReLU(),
-            nn.Conv2d(2, 4, kernel_size=(4,3), stride=(2,2), padding=(0,0)),  # [batch, 4, 36, 17]
-            nn.ReLU(),
-            nn.Conv2d(4, 8, kernel_size=(4,3), stride=(2,2), padding=(0,0)),  # [batch, 8, 17, 8]
-            nn.ReLU(),
-            nn.Flatten()
+        self.y_mix_ini_encoder = nn.Sequential(    # [batch, 1, 150, 69]
+            nn.Conv2d(1, 2, kernel_size=(4,3), stride=(2,2), padding=(0,0)),    # [batch, 2, 74, 34]
+            nn.LeakyReLU(),
+            nn.Conv2d(2, 4, kernel_size=(4,4), stride=(2,2), padding=(0,0)),  # [batch, 4, 36, 16]
+            nn.LeakyReLU(),
+            nn.Conv2d(4, 8, kernel_size=(4,4), stride=(2,2), padding=(0,0)),  # [batch, 8, 17, 7]
+            nn.LeakyReLU(),
+            nn.Flatten()    # [b, 952]
         )
 
-        self.flux_encoder = nn.Sequential(
-            nn.Linear(2500, 1088),
-            nn.ReLU()
+        self.top_flux_encoder = nn.Sequential(
+            nn.Linear(2500, 952),
+            nn.LeakyReLU()
         )
 
-        self.constants_encoder = nn.Sequential(
-            nn.Linear(1, 1088),
-            nn.ReLU()
+        self.Tco_encoder = nn.Sequential(
+            nn.Linear(150, 952),
+            nn.LeakyReLU()
+        )
+
+        self.Pco_encoder = nn.Sequential(
+            nn.Linear(150, 952),
+            nn.LeakyReLU()
+        )
+
+        self.g_encoder = nn.Sequential(
+            nn.Linear(150, 952),
+            nn.LeakyReLU()
+        )
+
+        self.gravity_encoder = nn.Sequential(
+            nn.Linear(1, 952),
+            nn.LeakyReLU()
         )
 
         self.latent_encoder = nn.Sequential(
-            nn.Conv2d(1, 1, kernel_size=(3,4), stride=(1,2), padding=(0,0)),    # [b, 1, 1, 543]
-            nn.ReLU(),
-            nn.Flatten(),    # [b, 543]
-            nn.Linear(543, 512),
-            nn.ReLU()
+            nn.Conv2d(1, 2, kernel_size=(4,4), stride=(2,2), padding=(0,0)),    # [b, 2, 2, 475]
+            nn.LeakyReLU(),
+            # nn.Flatten(),    # [b, 543]
+            # nn.Linear(543, 512),
+            # nn.ReLU()
         )
 
-        # decoders
-        self.latent_decoder_linear = nn.Sequential(
-            nn.Linear(512, 543),    # [b, 543]
-            nn.ReLU()
+        # DECODERS
+        self.latent_decoder = nn.Sequential(
+            nn.ConvTranspose2d(2, 1, kernel_size=(4,4), stride=(2,2), padding=(0,0)),    # [b, 1, 6, 952]
+            nn.LeakyReLU()
         )
 
-        self.latent_decoder_conv = nn.Sequential(
-            nn.ConvTranspose2d(1, 1, kernel_size=(3,4), stride=(1,2), padding=(0,0)),    # [b, 1, 3, 1088]
-            nn.ReLU()
+        self.y_mix_ini_decoder = nn.Sequential(
+            nn.ConvTranspose2d(8, 4, kernel_size=(4,4), stride=(2,2), padding=(0,0)),    # [b, 4, 36, 16]
+            nn.LeakyReLU(),
+            nn.ConvTranspose2d(4, 2, kernel_size=(4, 4), stride=(2, 2), padding=(0, 0)),  # [b, 2, 74, 34]
+            nn.LeakyReLU(),
+            nn.ConvTranspose2d(2, 1, kernel_size=(4, 3), stride=(2, 2), padding=(0, 0)),  # [b, 1, 150, 69]
+            nn.LeakyReLU()
         )
 
-        self.height_decoder = nn.Sequential(
-            nn.ConvTranspose2d(8, 4, kernel_size=(4,3), stride=(2,2), padding=(0,0)),    # [b, 4, 36, 17]
-            nn.ReLU(),
-            nn.ConvTranspose2d(4, 2, kernel_size=(4, 3), stride=(2, 2), padding=(0, 0)),  # [b, 2, 74, 35]
-            nn.ReLU(),
-            nn.ConvTranspose2d(2, 1, kernel_size=(4, 4), stride=(2, 2), padding=(0, 0)),  # [b, 1, 150, 72]
-            nn.ReLU()
+        self.top_flux_decoder = nn.Sequential(
+            nn.Linear(952, 2500),    # [b, 2500]
+            nn.LeakyReLU()
         )
 
-        self.flux_decoder = nn.Sequential(
-            nn.Linear(1088, 2500),    # [b, 2500]
-            nn.ReLU()
+        self.Tco_decoder = nn.Sequential(
+            nn.Linear(952, 150),
+            nn.LeakyReLU()
         )
 
-        self.constants_decoder = nn.Sequential(
-            nn.Linear(1088, 1),    # [b, 1]
-            nn.ReLU()
+        self.Pco_decoder = nn.Sequential(
+            nn.Linear(952, 150),
+            nn.LeakyReLU()
         )
 
-    def encode(self, height_arr, top_flux, const):
-        # encode height array
-        height_arr = height_arr[:, None, :, :]  # add image channel [b, 1, 150, 72]
-        encoded_height_arr = self.height_encoder(height_arr)  # [b, 1088]
+        self.g_decoder = nn.Sequential(
+            nn.Linear(952, 150),
+            nn.LeakyReLU()
+        )
 
-        # encode flux array
-        encoded_flux = self.flux_encoder(top_flux)  # [b, 1088]
+        self.gravity_decoder = nn.Sequential(
+            nn.Linear(952, 1),    # [b, 1]
+            nn.LeakyReLU()
+        )
 
-        # encode constants
-        const = const[:, None].double()    # [b, 1]
-        encoded_const = self.constants_encoder(const)  # [b, 1088]
+    def encode(self, y_mix_ini, top_flux, Tco, Pco, g, gravity):
+        # encode inputs
+        y_mix_ini = y_mix_ini[:, None, :, :]  # add image channel [b, 1, 150, 69]
+        encoded_y_mix_ini = self.y_mix_ini_encoder(y_mix_ini)  # [b, 952]
 
-        # concatenate encoded
+        encoded_top_flux = self.top_flux_encoder(top_flux)  # [b, 952]
+        encoded_Tco = self.Tco_encoder(Tco)  # [b, 952]
+        encoded_Pco = self.Tco_encoder(Pco)  # [b, 952]
+        encoded_g = self.Tco_encoder(g)  # [b, 952]
+
+        gravity = gravity[:, None].double()    # [b, 1]
+        encoded_gravity = self.gravity_encoder(gravity)  # [b, 952]
+
+        # concatenate encoded inputs
         concat_encoded = torch.cat(
-            (encoded_height_arr[:, None, :], encoded_flux[:, None, :], encoded_const[:, None, :]),  # [b, 3, 1088]
+            (encoded_y_mix_ini[:, None, :],
+             encoded_top_flux[:, None, :],
+             encoded_Tco[:, None, :],
+             encoded_Pco[:, None, :],
+             encoded_g[:, None, :],
+             encoded_gravity[:, None, :]),  # [b, 6, 952]
             dim=1
         )
 
         # create latent
-        concat_encoded = concat_encoded[:, None, :, :]  # [b, 1, 3, 1088]
-        latent = self.latent_encoder(concat_encoded)  # [b, 512]
+        concat_encoded = concat_encoded[:, None, :, :]  # [b, 1, 6, 952]
+        latent = self.latent_encoder(concat_encoded)  # [b, 2, 2, 475]
 
         return latent
 
     def decode(self, latent):
-        # decode latent into encoded components
-        concat_encoded_linear = self.latent_decoder_linear(latent)    # [b, 543]
+        # decode latent
+        decoded_latent = self.latent_decoder(latent)  # [b, 1, 6, 952]
+        b, _, concats, conv_length = decoded_latent.shape
 
-        b, linear_length = concat_encoded_linear.shape
-
-        # add two dimensions for convolutional layer
-        concat_encoded_linear = concat_encoded_linear.reshape(shape=(b, 1, 1, linear_length))    # [b, 1, 1, 543]
-
-        concat_decoded_conv = self.latent_decoder_conv(concat_encoded_linear)    # [b, 1, 3, 1088]
-        _, _, _, conv_length = concat_decoded_conv.shape
-        concat_decoded_conv = concat_decoded_conv.reshape(shape=(b, 3, conv_length))    # [b, 3, 1088]
+        # remove extra dimension
+        decoded_latent = decoded_latent.reshape(shape=(b, concats, conv_length))    # [b, 6, 952]
 
         # separate out components
-        encoded_height_arr, encoded_flux, encoded_const = torch.split(concat_decoded_conv,
-                                                                      split_size_or_sections=1,
-                                                                      dim=1)    # 3x [b, 1, 1088]
+        decoded_y_mix_ini, decoded_top_flux, decoded_Tco, decoded_Pco, decoded_g, decoded_gravity = torch.split(
+            decoded_latent, split_size_or_sections=1, dim=1  # 6x [b, 1, 952]
+        )
 
-        # decode height array
-        encoded_height_arr = encoded_height_arr.reshape(shape=(b, 8, 17, 8))    # [b, 8, 17, 8]
-        decoded_height_arr = self.height_decoder(encoded_height_arr)
-        decoded_height_arr = decoded_height_arr.reshape(shape=(b, 150, 72))
+        # decode components
+        decoded_y_mix_ini = decoded_y_mix_ini.reshape(shape=(b, 8, 17, 7))
+        decoded_y_mix_ini = self.y_mix_ini_decoder(decoded_y_mix_ini)  # [b, 1, 150, 69]
+        decoded_y_mix_ini = decoded_y_mix_ini.reshape(shape=(b, 150, 69))
 
-        # decode flux array
-        encoded_flux = encoded_flux.reshape(shape=(b, conv_length))    # [b, 1088]
-        decoded_flux = self.flux_decoder(encoded_flux)    # [b, 2500]
+        decoded_top_flux = decoded_top_flux.reshape(shape=(b, conv_length))
+        decoded_top_flux = self.top_flux_decoder(decoded_top_flux)
 
-        # decode constants array
-        encoded_const = encoded_const.reshape(shape=(b, conv_length))    # [b, 1088]
-        decoded_const = self.constants_decoder(encoded_const)    # [b, 1]
+        decoded_Tco = decoded_Tco.reshape(shape=(b, conv_length))
+        decoded_Tco = self.Tco_decoder(decoded_Tco)
 
-        return decoded_height_arr, decoded_flux, decoded_const
+        decoded_Pco = decoded_Pco.reshape(shape=(b, conv_length))
+        decoded_Pco = self.Pco_decoder(decoded_Pco)
 
-    def forward(self, height_arr, top_flux, const):
+        decoded_g = decoded_g.reshape(shape=(b, conv_length))
+        decoded_g = self.g_decoder(decoded_g)
+
+        decoded_gravity = decoded_gravity.reshape(shape=(b, conv_length))
+        decoded_gravity = self.gravity_decoder(decoded_gravity)
+
+        return decoded_y_mix_ini, decoded_top_flux, decoded_Tco, decoded_Pco, decoded_g, decoded_gravity
+
+    def forward(self, y_mix_ini, top_flux, Tco, Pco, g, gravity):
         # encode
-        latent = self.encode(height_arr, top_flux, const)
+        latent = self.encode(y_mix_ini, top_flux, Tco, Pco, g, gravity)
 
         # decode
-        dec_height_arr, dec_top_flux, dec_const = self.decode(latent)
+        decoded_y_mix_ini, decoded_top_flux, decoded_Tco, decoded_Pco, decoded_g, decoded_gravity = self.decode(latent)
 
-        return dec_height_arr, dec_top_flux, dec_const
+        return decoded_y_mix_ini, decoded_top_flux, decoded_Tco, decoded_Pco, decoded_g, decoded_gravity
 
 
 def calculate_padding(input_shape, kernel_size, stride):
@@ -160,13 +193,13 @@ def calculate_padding(input_shape, kernel_size, stride):
         print(f'{W_out = }')
 
     print(f'\ninput_shape: {(H, W)}\n'
-          f'output_shape: {(H_out, W_out)}\n'
+          f'output_shape: {(int(H_out), int(W_out))}\n'
           f'kernel_size: {kernel_size}\n'
           f'stride: {stride}\n'
           f'padding: {padding}')
 
 
 if __name__ == "__main__":
-    calculate_padding(input_shape=(3, 1088),
-                      kernel_size=(3,4),
-                      stride=(1,2))
+    calculate_padding(input_shape=(6, 952),
+                      kernel_size=(4,4),
+                      stride=(2,2))

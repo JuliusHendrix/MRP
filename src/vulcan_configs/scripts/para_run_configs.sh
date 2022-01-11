@@ -2,7 +2,7 @@
 #PBS -S /bin/tcsh
 #PBS -j oe
 #PBS -q para
-#PBS -l nodes=1:ppn=64
+#PBS -l nodes=1:ppn=48
 #PBS -l walltime=48:00:00
 
 # mail alert at start, end and abortion of execution
@@ -13,4 +13,4 @@
 cd /net/student33/data2/hendrix/
 setenv PATH /net/student33/data2/hendrix/
 #
-/net/student33/data2/hendrix/git/MRP/src/vulcan_configs/run_vulcan_configs.sh
+/net/student33/data2/hendrix/git/MRP/src/vulcan_configs/scripts/run_vulcan_for_configs.sh

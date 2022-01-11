@@ -5,12 +5,13 @@ import pickle
 import shutil
 import multiprocessing as mp
 from tqdm import tqdm
+from pathlib import Path
 
 use_height = False
 
 # plot_spec = ('H', 'O', 'C', 'N')
-plot_spec = ('H2', 'H', 'CO', 'H2O')
-colors = ['k', 'y', 'b', 'pink']
+plot_spec = ('H2O', 'CO2', 'CO', 'NH3', 'HCN', 'H2')
+colors = ['k', 'y', 'b', 'pink', 'r', 'mediumspringgreen']
 
 # tex labels for plotting
 tex_labels = {'H':'H','H2':'H$_2$','O':'O','OH':'OH','H2O':'H$_2$O','CH':'CH','C':'C','CH2':'CH$_2$','CH3':'CH$_3$','CH4':'CH$_4$','HCO':'HCO','H2CO':'H$_2$CO', 'C4H2':'C$_4$H$_2$',\
@@ -82,7 +83,9 @@ def plot_vulcan_file(params):
 def main():
     # setup paths
     # output_dir = os.path.expanduser('/data/vulcan_output_parallel/')
-    output_dir = os.path.expanduser('/data/vulcan_output_parallel/')
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    MRP_dir = str(Path(script_dir).parents[1])
+    output_dir = os.path.join(MRP_dir, 'data/vulcan_output_parallel')
     plot_base_dir = os.path.join(output_dir, 'plots/')
     plot_dir = os.path.join(plot_base_dir, 'mixing_ratios/')
 

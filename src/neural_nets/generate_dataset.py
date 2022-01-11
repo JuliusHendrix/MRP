@@ -23,7 +23,11 @@ import time, timeit, os, sys
 import ast
 
 # own modules
-from ..vulcan_configs.vulcan_config_utils import CopyManager
+script_dir = os.path.dirname(os.path.abspath(__file__))
+src_dir = str(Path(script_dir).parents[1])
+sys.path.append(src_dir)
+
+from src.vulcan_configs.vulcan_config_utils import CopyManager
 
 # TODO: don't know if this is nescessary
 # Limiting the number of threads
@@ -137,12 +141,23 @@ def ini_vulcan():
     return data_atm, data_var
 
 
+def distribution_standardization(prop, prop_mean=None, prop_std=None):
+    if not prop_mean:
+        prop_mean = np.mean(prop)
+    if not prop_std:
+        prop_std = np.std(prop)
+
+    scaled_prop = (prop - prop_mean) / prop_std
+
+    return scaled_prop, prop_mean, prop_std
+
+
 def generate_inputs():
     # generate simulation state
     data_atm, data_var = ini_vulcan()
 
     # flux
-    top_flux = data_var.sflux_top
+    top_flux = data_var.sflux_top    # (2500,)
 
     # TP-profile
     Pco = data_atm.pco  # (150,)
@@ -151,39 +166,63 @@ def generate_inputs():
     # initial abundances
     y_ini = data_var.y_ini  # (150, 69)
 
+    # mixing  ratios
+    total_abundances = np.sum(y_ini, axis=-1)
+    y_mix_ini = y_ini / np.tile(total_abundances[..., None], y_ini.shape[-1])
+
     # mean molecular mass
-    g = data_atm.g  # (150,)
+    g = data_atm.g  # (150,)    # TODO: waarom ook deze?
 
     # surface gravity
     gs = data_atm.gs  # ()
 
-    # concatenate all arrays with height
-    height_arr = np.concatenate(
-        (y_ini,
-         Pco[..., None],
-         Tco[..., None],
-         g[..., None]),
-        axis=1)
+    # scaling
+    y_mix_ini_scaled, y_mix_ini_mean, y_mix_ini_std = distribution_standardization(np.log10(y_mix_ini))
+    Tco_scaled, Tco_mean, Tco_std = distribution_standardization(np.log10(Tco))
+    g_scaled, g_mean, g_std = distribution_standardization(np.log10(g))
+    Pco_scaled = np.log10(Pco)
+    top_flux_scaled = top_flux / 1e5
+    gs_scaled = np.log10(gs)
+
+    scaling_parameters = {
+        "y_mix_ini": (y_mix_ini_mean, y_mix_ini_std),
+        "Tco": (Tco_mean, Tco_std),
+        "g": (g_mean, g_std)
+    }
 
     # to tensors
     inputs = {
-        "height_arr": torch.from_numpy(height_arr),   # add channel for conv layer
-        "top_flux": torch.from_numpy(top_flux),
-        "gravity": torch.tensor(gs)
+        "y_mix_ini": torch.from_numpy(y_mix_ini_scaled),    # (150, 69)
+        "Tco": torch.from_numpy(Tco_scaled),    # (150, )
+        "Pco": torch.from_numpy(Pco_scaled),    # (150, )
+        "g": torch.from_numpy(g_scaled),    # (150, )
+        "top_flux": torch.from_numpy(top_flux_scaled),    # (2500,)
+        "gravity": torch.tensor(gs_scaled),    # ()
+        "scaling_parameters": scaling_parameters
     }
 
     return inputs
 
 
-def generate_output(vul_file):
+def generate_output(vul_file, scaling_parameters):
     # extract data
     with open(vul_file, 'rb') as handle:
         data = pickle.load(handle)
 
     y = data['variable']['y']
 
+    # mixing  ratios
+    total_abundances = np.sum(y, axis=-1)
+    y_mix = y / np.tile(total_abundances[..., None], y.shape[-1])
+
+    # same scaling as input
+    y_scaling = scaling_parameters["y_mix_ini"]
+    y_mix_scaled, _, _ = distribution_standardization(np.log10(y_mix),
+                                                      prop_mean=y_scaling[0],
+                                                      prop_std=y_scaling[1])
+
     outputs = {
-        "y": torch.from_numpy(y)
+        "y_mix": torch.from_numpy(y_mix_scaled)    # (150, 69)
     }
 
     return outputs
@@ -223,7 +262,7 @@ def generate_input_output_pair(params):
 
     # generate output tensor
     vul_file = os.path.join(output_dir, f'output_{cf_name[11:-3]}.vul')
-    outputs = generate_output(vul_file)
+    outputs = generate_output(vul_file, inputs["scaling_parameters"])
 
     # save example
     example = {
@@ -251,14 +290,14 @@ def generate_input_output_pair(params):
     return entry
 
 
-def main(batch_size, num_workers):
+def main(num_workers):
     # setup directories
     script_dir = os.path.dirname(os.path.abspath(__file__))
     git_dir = str(Path(script_dir).parents[2])
-    output_dir = os.path.join(git_dir, 'MRP/data/vulcan_output_small')
-    config_dir = os.path.join(git_dir, 'MRP/data/configs')
+    output_dir = os.path.join(git_dir, 'MRP/data/christmas_dataset/vulcan_output')
+    config_dir = os.path.join(git_dir, 'MRP/data/christmas_dataset/configs')
     VULCAN_dir = os.path.join(git_dir, 'VULCAN')
-    dataset_dir = os.path.join(git_dir, 'MRP/data/dataset')
+    dataset_dir = os.path.join(git_dir, 'MRP/data/christmas_dataset/dataset')
 
     # create dataset dir
     if os.path.isdir(dataset_dir):
@@ -298,10 +337,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run the vulcan configurations')
     parser.add_argument('-w', '--workers', help='Number of multiprocessing-subprocesses', type=int, default=mp.cpu_count() - 1,
                         required=False)
-    parser.add_argument('-b', '--batch', help='Number of pairs per .pt file', type=int, default=64,
-                        required=False)
+    # parser.add_argument('-b', '--batch', help='Number of pairs per .pt file', type=int, default=64,
+    #                     required=False)
     args = vars(parser.parse_args())
 
     # run main
-    main(batch_size=args['batch'],
-         num_workers=args['workers'])
+    main(num_workers=args['workers'])

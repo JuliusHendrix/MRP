@@ -6,12 +6,13 @@ import pickle
 import shutil
 import multiprocessing as mp
 from tqdm import tqdm
-from decimal import Decimal
+from pathlib import Path
+import numpy as np
 
 use_height = False
 
-plot_spec = ('H', 'O', 'C', 'N')
-colors = ['k', 'y', 'b', 'pink']
+plot_spec = ('H2O', 'CO2', 'CO', 'NH3', 'HCN', 'H2')
+colors = ['k', 'y', 'b', 'pink', 'r', 'mediumspringgreen']
 
 # tex labels for plotting
 tex_labels = {'H': 'H', 'H2': 'H$_2$', 'O': 'O', 'OH': 'OH', 'H2O': 'H$_2$O', 'CH': 'CH', 'C': 'C', 'CH2': 'CH$_2$',
@@ -83,17 +84,20 @@ def plot_vulcan_gif(params):
     # plotting takes from plot_vulcan.py
     species = data['variable']['species']
 
-    mxixing_ratios = data['variable']['y_time']
+    abundances = data['variable']['y_time']
     times = data['variable']['t_time']
 
     filenames = []
-    for i, (y, t) in enumerate(zip(mxixing_ratios, times)):
+    for i, (y, t) in enumerate(zip(abundances, times)):
+        total_abundances = np.sum(y, axis=-1)
+        y_mix = y / np.tile(total_abundances[..., None], y.shape[-1])
+
         # make and save name for timestep
         plot_filename = os.path.join(plot_dir, f'{filename[:-4]}_{i}.png')
         filenames.append(plot_filename)
 
         # plot and save figure
-        plot_timestep(y, t, data, species, plot_filename)
+        plot_timestep(y_mix, t, data, species, plot_filename)
 
     with imageio.get_writer(gif_filename, mode='I') as writer:
         for plot_filename in filenames:
@@ -110,7 +114,9 @@ def plot_vulcan_gif(params):
 def main():
     # setup paths
     # output_dir = os.path.expanduser('/data/vulcan_output_parallel/')
-    output_dir = os.path.expanduser('/data/vulcan_output_parallel/')
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    MRP_dir = str(Path(script_dir).parents[1])
+    output_dir = os.path.join(MRP_dir, 'data/vulcan_output_parallel')
     plot_base_dir = os.path.join(output_dir, 'plots/')
     plot_dir = os.path.join(plot_base_dir, 'gifs/')
 
@@ -131,6 +137,11 @@ def main():
     num_workers = mp.cpu_count() - 1
 
     print("plotting abundances...")
+
+    # for params in mp_params:
+    #     plot_vulcan_gif(params)
+    #     break
+
     with mp.get_context("spawn").Pool(processes=num_workers) as pool:
         results = list(tqdm(pool.imap(plot_vulcan_gif, mp_params),  # return results otherwise it doesn't work properly
                             total=len(mp_params)))
