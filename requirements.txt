@@ -18,3 +18,5 @@ torch
 torchvision
 torchaudio
 tensorboard
+graphviz    # also install with `sudo apt-get install graphviz`
+torchviz

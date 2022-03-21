@@ -9,6 +9,7 @@ import psutil
 from tqdm import tqdm
 import numpy as np
 import torch
+from torch.utils.data import DataLoader
 import pickle
 import importlib
 import argparse
@@ -28,10 +29,70 @@ src_dir = str(Path(script_dir).parents[1])
 sys.path.append(src_dir)
 
 from src.vulcan_configs.vulcan_config_utils import CopyManager
+from src.neural_nets.dataset_utils import VulcanDataset, unscale_example
 
 # TODO: don't know if this is nescessary
 # Limiting the number of threads
 os.environ["OMP_NUM_THREADS"] = "1"
+
+
+def cut_values(dataset_dir, threshold, spec_list):
+    # dataset loader
+    vulcan_dataset = VulcanDataset(dataset_dir)
+    dataloader = DataLoader(vulcan_dataset, batch_size=1,
+                            shuffle=True,
+                            num_workers=0)
+    # get scaling parameters
+    scaling_file = os.path.join(dataset_dir, 'scaling_dict.pkl')
+    with open(scaling_file, 'rb') as f:
+        scaling_params = pickle.load(f)
+
+    # create tot dict
+    for i, dummy_example in enumerate(dataloader):
+        unscaled_dummy_example = unscale_example(dummy_example, scaling_params)
+        tot_dict = unscaled_dummy_example.copy()
+        for top_key, top_value in tot_dict.items():
+            for key, value in top_value.items():
+                zero_value = np.zeros_like(value)
+                tot_dict[top_key][key] = np.tile(zero_value[..., None], len(dataloader))
+        break
+
+    # loop through examples
+    with tqdm(dataloader, unit='example', desc=f'Summing values') as dataloader:
+        for i, example in enumerate(dataloader):
+            # unscale dict
+            unscaled_dict = unscale_example(example, scaling_params)
+
+            # add
+            for top_key, top_value in tot_dict.items():
+                for key, value in top_value.items():
+                    tot_dict[top_key][key][..., i] = unscaled_dict[top_key][key]
+
+    # calculate means
+    agg_dict = tot_dict.copy()
+    for top_key, top_value in tot_dict.items():
+        for key, value in top_value.items():
+            agg_dict[top_key][key] = np.median(value, axis=-1)
+
+    y_mix_ini = agg_dict['inputs']['y_mix_ini'].swapaxes(0, 1)
+    y_mix_ini_median_height = np.median(y_mix_ini, axis=1)
+
+    inds = np.where(y_mix_ini_median_height > threshold)[0]
+    print(f'cutting to {len(inds)} species...')
+    spec_list = spec_list[inds]
+
+    torch_files = glob.glob(os.path.join(dataset_dir, '*.pt'))
+
+    for torch_file in tqdm(torch_files, desc='cutting torch files'):
+        example = torch.load(torch_file)
+
+        cut_example = example.copy()
+        cut_example['inputs']['y_mix_ini'] = example['inputs']['y_mix_ini'][:, inds]
+        cut_example['outputs']['y_mix'] = example['outputs']['y_mix'][:, inds]
+
+        torch.save(cut_example, torch_file)
+
+    return spec_list
 
 
 def ini_vulcan():
@@ -44,18 +105,15 @@ def ini_vulcan():
     import vulcan_cfg
     importlib.reload(sys.modules['vulcan_cfg'])
 
+    # import chem_funs
+    import chem_funs
+
     # import VULCAN modules
     import store, build_atm, op
-    try:
-        import chem_funs
-    except:
-        raise IOError('\nThe module "chem_funs" does not exist.\nPlease run prepipe.py first to create the module...')
 
     from phy_const import kb, Navo, au, r_sun
 
     from chem_funs import ni, nr  # number of species and reactions in the network
-
-    species = chem_funs.spec_list
 
     ### read in the basic chemistry data
     with open(vulcan_cfg.com_file, 'r') as f:
@@ -137,27 +195,18 @@ def ini_vulcan():
         sflux_top[n] = inter_sflux(ld)
 
     data_var.sflux_top = sflux_top
+    data_var.bins = bins
 
     return data_atm, data_var
 
 
-def distribution_standardization(prop, prop_mean=None, prop_std=None):
-    if not prop_mean:
-        prop_mean = np.mean(prop)
-    if not prop_std:
-        prop_std = np.std(prop)
-
-    scaled_prop = (prop - prop_mean) / prop_std
-
-    return scaled_prop, prop_mean, prop_std
-
-
-def generate_inputs():
+def generate_inputs(mode):
     # generate simulation state
     data_atm, data_var = ini_vulcan()
 
     # flux
     top_flux = data_var.sflux_top    # (2500,)
+    wavelengths = data_var.bins    # (2500,)
 
     # TP-profile
     Pco = data_atm.pco  # (150,)
@@ -170,41 +219,36 @@ def generate_inputs():
     total_abundances = np.sum(y_ini, axis=-1)
     y_mix_ini = y_ini / np.tile(total_abundances[..., None], y_ini.shape[-1])
 
-    # mean molecular mass
+    print(f'\n------------')
+    print(f'{y_mix_ini.min() = }')
+    print(f'{top_flux.min() = }')
+
+    if mode == 'clipped':
+        # clipping of values
+        y_mix_ini = np.where(y_mix_ini < 1e-14, 1e-14, y_mix_ini)
+        top_flux = np.where(top_flux < 1e-10, 1e-10, top_flux)
+
+    # gravity
     g = data_atm.g  # (150,)    # TODO: waarom ook deze?
 
     # surface gravity
     gs = data_atm.gs  # ()
 
-    # scaling
-    y_mix_ini_scaled, y_mix_ini_mean, y_mix_ini_std = distribution_standardization(np.log10(y_mix_ini))
-    Tco_scaled, Tco_mean, Tco_std = distribution_standardization(np.log10(Tco))
-    g_scaled, g_mean, g_std = distribution_standardization(np.log10(g))
-    Pco_scaled = np.log10(Pco)
-    top_flux_scaled = top_flux / 1e5
-    gs_scaled = np.log10(gs)
-
-    scaling_parameters = {
-        "y_mix_ini": (y_mix_ini_mean, y_mix_ini_std),
-        "Tco": (Tco_mean, Tco_std),
-        "g": (g_mean, g_std)
-    }
-
     # to tensors
     inputs = {
-        "y_mix_ini": torch.from_numpy(y_mix_ini_scaled),    # (150, 69)
-        "Tco": torch.from_numpy(Tco_scaled),    # (150, )
-        "Pco": torch.from_numpy(Pco_scaled),    # (150, )
-        "g": torch.from_numpy(g_scaled),    # (150, )
-        "top_flux": torch.from_numpy(top_flux_scaled),    # (2500,)
-        "gravity": torch.tensor(gs_scaled),    # ()
-        "scaling_parameters": scaling_parameters
+        "y_mix_ini": torch.from_numpy(y_mix_ini),    # (150, 69)
+        "Tco": torch.from_numpy(Tco),    # (150, )
+        "Pco": torch.from_numpy(Pco),    # (150, )
+        "g": torch.from_numpy(g),    # (150, )
+        "top_flux": torch.from_numpy(top_flux),    # (2500,)
+        "wavelengths": torch.from_numpy(wavelengths),    # (2500,)
+        "gravity": torch.tensor(gs),    # ()
     }
 
     return inputs
 
 
-def generate_output(vul_file, scaling_parameters):
+def generate_output(vul_file, mode):
     # extract data
     with open(vul_file, 'rb') as handle:
         data = pickle.load(handle)
@@ -215,14 +259,12 @@ def generate_output(vul_file, scaling_parameters):
     total_abundances = np.sum(y, axis=-1)
     y_mix = y / np.tile(total_abundances[..., None], y.shape[-1])
 
-    # same scaling as input
-    y_scaling = scaling_parameters["y_mix_ini"]
-    y_mix_scaled, _, _ = distribution_standardization(np.log10(y_mix),
-                                                      prop_mean=y_scaling[0],
-                                                      prop_std=y_scaling[1])
+    if mode == 'clipped':
+        # clipping of values
+        y_mix = np.where(y_mix < 1e-14, 1e-14, y_mix)
 
     outputs = {
-        "y_mix": torch.from_numpy(y_mix_scaled)    # (150, 69)
+        "y_mix": torch.from_numpy(y_mix)    # (150, 69)
     }
 
     return outputs
@@ -234,7 +276,7 @@ def generate_input_output_pair(params):
     """
 
     # extract params
-    (i, config_file, copy_manager, output_dir, dataset_dir) = params
+    (i, config_file, copy_manager, output_dir, dataset_dir, mode) = params
 
     # get available VULCAN dir copy
     available_dir = copy_manager.get_available_copy()
@@ -258,11 +300,11 @@ def generate_input_output_pair(params):
     )
 
     # generate input tensors
-    inputs = generate_inputs()
+    inputs = generate_inputs(mode)
 
     # generate output tensor
     vul_file = os.path.join(output_dir, f'output_{cf_name[11:-3]}.vul')
-    outputs = generate_output(vul_file, inputs["scaling_parameters"])
+    outputs = generate_output(vul_file, mode)
 
     # save example
     example = {
@@ -297,7 +339,13 @@ def main(num_workers):
     output_dir = os.path.join(git_dir, 'MRP/data/christmas_dataset/vulcan_output')
     config_dir = os.path.join(git_dir, 'MRP/data/christmas_dataset/configs')
     VULCAN_dir = os.path.join(git_dir, 'VULCAN')
-    dataset_dir = os.path.join(git_dir, 'MRP/data/christmas_dataset/dataset')
+
+    mode = 'cut'    # '', 'clipped', 'cut'
+
+    if mode == '':
+        dataset_dir = os.path.join(git_dir, 'MRP/data/christmas_dataset/dataset')
+    else:
+        dataset_dir = os.path.join(git_dir, f'MRP/data/christmas_dataset/{mode}_dataset')
 
     # create dataset dir
     if os.path.isdir(dataset_dir):
@@ -314,7 +362,7 @@ def main(num_workers):
     mp_copy_manager = manager.CopyManager(num_workers, VULCAN_dir)
 
     # setup_mp_params
-    mp_params = [(i, config_file, mp_copy_manager, output_dir, dataset_dir) for i, config_file in enumerate(config_files)]
+    mp_params = [(i, config_file, mp_copy_manager, output_dir, dataset_dir, mode) for i, config_file in enumerate(config_files)]
 
     # run parallel
     print(f'running with {num_workers} workers...')
@@ -330,6 +378,21 @@ def main(num_workers):
     index_dict_file = os.path.join(dataset_dir, 'index_dict.pkl')
     with open(index_dict_file, 'wb') as f:
         pickle.dump(index_dict, f)
+
+    # save species list
+    os.chdir(VULCAN_dir)
+    sys.path.append(VULCAN_dir)
+
+    from chem_funs import spec_list
+
+    spec_list = np.array(spec_list)
+
+    if mode == 'cut':
+        spec_list = cut_values(dataset_dir, 1e-30, spec_list)
+
+    species_list_file = os.path.join(dataset_dir, 'species_list.pkl')
+    with open(species_list_file, 'wb') as f:
+        pickle.dump(spec_list, f)
 
 
 if __name__ == "__main__":
