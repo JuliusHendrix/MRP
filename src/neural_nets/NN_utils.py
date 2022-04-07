@@ -11,8 +11,8 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 src_dir = str(Path(script_dir).parents[1])
 sys.path.append(src_dir)
 
-from src.neural_nets.dataset_utils import unscale_inputs_outputs
-from src.neural_nets.AE.visualize_example import plot_all
+from src.neural_nets.dataset_utils import unscale_inputs_outputs, unscale_inputs_outputs_model_outputs, unscale
+from src.neural_nets.AE.visualize_example import plot_all, plot_y_mix_core, plot_individual_y_mix, plot_single_variable
 
 
 class LossWeightScheduler:
@@ -261,6 +261,25 @@ def plot_vars(inputs, outputs, scaling_params, spec_list, model_name):
     fig = plot_all(unscaled_dict, spec_list, model_name, show=False, save=False)
     return fig
 
+
+def plot_y_mix(inputs, outputs, decoded_outputs, decoded_model_outputs, scaling_params, spec_list, model_name):
+    unscaled_dict = unscale_inputs_outputs_model_outputs(inputs, outputs, decoded_outputs, decoded_model_outputs, scaling_params)
+    fig = plot_y_mix_core(unscaled_dict, spec_list, model_name, show=False, save=False)
+    return fig
+
+
+def plot_single_y_mix(y_mix, y_mix_decoded, sp_idx, spec_list, scales, model_name):
+    y_mix_unscale = unscale(y_mix, *scales).detach().numpy()[0]
+    y_mix_decoded_unscale = unscale(y_mix_decoded, *scales).detach().numpy()[0]
+    fig = plot_individual_y_mix(y_mix_unscale, y_mix_decoded_unscale, sp_idx, spec_list, model_name)
+    return fig
+
+
+def plot_variable(x, y, y_o, scales, model_name, xlabel, ylabel, xlog=False, ylog=False):
+    y_unscale = unscale(y, *scales).detach().numpy()[0]
+    y_o_unscale = unscale(y_o, *scales).detach().numpy()[0]
+    fig = plot_single_variable(x, y_unscale, y_o_unscale, model_name, xlabel, ylabel, xlog, ylog)
+    return fig
 
 if __name__ == "__main__":
     # calculate_padding(input_shape=(150, 69),

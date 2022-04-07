@@ -6,6 +6,7 @@ from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 import numpy as np
 from tqdm import tqdm
+import shutil
 
 zero_value = 1e-99
 same_scale_items = np.array([
@@ -27,8 +28,8 @@ def copy_output_to_input(example):
     new_example = example.copy()
     new_example['inputs']['y_mix_ini'] = example['outputs']['y_mix']
 
-    if example['outputs']['y_mix'].detach().numpy().any() == np.nan:
-        print('nans!')
+    # if example['outputs']['y_mix'].detach().numpy().any() == np.nan:
+    #     print('nans!')
 
     return new_example
 
@@ -157,73 +158,9 @@ def create_scaling_dict(ds_dir):
         pickle.dump(scaling_dict, f)
 
 
-class VulcanDataset(Dataset):
-    def __init__(self, dataset_dir, double_mode=False):
-        self.dataset_dir = dataset_dir
-        self.double_mode = double_mode
-
-        index_file = os.path.join(dataset_dir, 'index_dict.pkl')
-        with open(index_file, 'rb') as f:
-            self.index_dict = pickle.load(f)
-
-        scaling_file = os.path.join(dataset_dir, 'scaling_dict.pkl')
-        if not os.path.exists(scaling_file):
-            create_scaling_dict(dataset_dir)
-
-        with open(scaling_file, 'rb') as f:
-            self.scaling_dict = pickle.load(f)
-
-        print(f'{self.scaling_dict = }')
-
-    def __len__(self):
-        if self.double_mode:
-            return 2 * len(self.index_dict)
-        else:
-            return len(self.index_dict)
-
-    def load_example(self, idx):
-        if torch.is_tensor(idx):
-            idx = idx.tolist()
-
-        if self.double_mode:
-            filename = f'{int(idx / 2):04}.pt'
-            example = torch.load(os.path.join(self.dataset_dir, filename))
-
-            if idx % 2 != 0:
-                example = copy_output_to_input(example)
-
-        else:
-            filename = f'{idx:04}.pt'
-            example = torch.load(os.path.join(self.dataset_dir, filename))
-
-        return example
-
-    def scale_example(self, example):
-        scaled_example = {
-            'inputs': {},
-            'outputs': {}
-        }
-
-        for top_key in scaled_example.keys():
-            for (key, value), scales in zip(example[top_key].items(), self.scaling_dict[top_key].values()):
-                # scale values
-                scaled_value = scale(value, *scales)
-                scaled_example[top_key].update(
-                    {key: scaled_value}
-                )
-
-        return scaled_example
-
-    def __getitem__(self, idx):
-        example = self.load_example(idx)
-        scaled_example = self.scale_example(example)
-
-        return scaled_example
-
-
-def make_data_loaders(dataset_dir, train_test_validation_ratios, batch_size, shuffle, num_workers, double_mode=False):
+def make_data_loaders(dataloader, dataset_dir, train_test_validation_ratios, batch_size, shuffle, num_workers):
     # dataset loader
-    vulcan_dataset = VulcanDataset(dataset_dir, double_mode)
+    vulcan_dataset = dataloader(dataset_dir)
 
     # split like this to make sure len(subsets) = len(dataset)
     train_size = int(train_test_validation_ratios[0] * len(vulcan_dataset))
@@ -236,13 +173,16 @@ def make_data_loaders(dataset_dir, train_test_validation_ratios, batch_size, shu
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size,
                               shuffle=shuffle,
-                              num_workers=num_workers)
+                              num_workers=num_workers,
+                              pin_memory=True)
     test_loader = DataLoader(test_dataset, batch_size=batch_size,
                              shuffle=shuffle,
-                             num_workers=num_workers)
+                             num_workers=num_workers,
+                              pin_memory=True)
     validation_loader = DataLoader(validation_dataset, batch_size=batch_size,
                                    shuffle=shuffle,
-                                   num_workers=num_workers)
+                                   num_workers=num_workers,
+                              pin_memory=True)
 
     return train_loader, test_loader, validation_loader
 
@@ -261,7 +201,7 @@ def reverse_distribution_standardization(prop, prop_mean, prop_std):
         return prop * prop_std + prop_mean
 
 
-# TODO: scale dataset before training to speed up?
+# TODO: scale dataset before training to speed up!!
 def scale(prop, prop_mean, prop_std, prop_min, prop_max):
     # remove zero values
     prop[prop == 0] = zero_value
@@ -317,6 +257,93 @@ def unscale_inputs_outputs(inputs, outputs, scaling_params):
     return unscaled_dict
 
 
+def unscale_inputs_outputs_model_outputs(inputs, outputs, decoded_outputs, decoded_model_outputs, scaling_params):
+    # unscale outputs and model outputs
+    unscaled_dict = {
+        'inputs': {},
+        'outputs': {},
+        'decoded_outputs': {},
+        'decoded_model_outputs': {}
+    }
+
+    # inputs
+    for i_key, i_value in inputs.items():
+        scales = scaling_params['inputs'][i_key]
+
+        unscaled_input = unscale(i_value, *scales)
+        unscaled_dict['inputs'].update(
+            {i_key: unscaled_input.detach().numpy()[0]}
+        )
+
+    # outputs
+    for o_key, o_value in outputs.items():
+        scales = scaling_params['outputs'][o_key]
+        unscaled_output = unscale(o_value, *scales)
+        unscaled_dict['outputs'].update(
+            {o_key: unscaled_output.detach().numpy()[0]}
+        )
+
+    # model outputs
+    for do_key, do_value in decoded_outputs.items():
+        scales = scaling_params['inputs'][do_key]
+        unscaled_do_output = unscale(do_value, *scales)
+        unscaled_dict['decoded_outputs'].update(
+            {do_key: unscaled_do_output.detach().numpy()[0]}
+        )
+
+    # decoded model outputs
+    for dmo_key, dmo_value in decoded_model_outputs.items():
+        scales = scaling_params['inputs'][dmo_key]
+        unscaled_dmo_output = unscale(dmo_value, *scales)
+        unscaled_dict['decoded_model_outputs'].update(
+            {dmo_key: unscaled_dmo_output.detach().numpy()[0]}
+        )
+
+    return unscaled_dict
+
+
+def scale_dataset(dataset_dir):
+    # get scaling parameters
+    scaling_file = os.path.join(dataset_dir, 'scaling_dict.pkl')
+    with open(scaling_file, 'rb') as f:
+        scaling_dict = pickle.load(f)
+
+    def scale_example(example):
+        scaled_example = {
+            'inputs': {},
+            'outputs': {}
+        }
+
+        for top_key in scaled_example.keys():
+            for (key, value), scales in zip(example[top_key].items(), scaling_dict[top_key].values()):
+                # scale values
+                scaled_value = scale(value, *scales)
+                scaled_example[top_key].update(
+                    {key: scaled_value}
+                )
+
+        return scaled_example
+
+    torch_files = glob.glob(os.path.join(dataset_dir, '*.pt'))
+
+    scaled_dataset_dir = os.path.join(dataset_dir, 'scaled_dataset/')
+
+    # remake the config directory
+    if os.path.isdir(scaled_dataset_dir):
+        shutil.rmtree(scaled_dataset_dir)
+    os.mkdir(scaled_dataset_dir)
+
+    # loop through examples
+    for torch_file in tqdm(torch_files, desc='scaling torch files'):
+        example = torch.load(torch_file)
+        scaled_example = scale_example(example)
+
+        torch_filename = os.path.basename(torch_file)
+        scaled_torch_file = os.path.join(scaled_dataset_dir, torch_filename)
+        torch.save(scaled_example, scaled_torch_file)
+
+
 if __name__ == "__main__":
-    ds_dir = os.path.expanduser('~/git/MRP/data/christmas_dataset/unscaled_dataset/')
-    create_scaling_dict(ds_dir)
+    ds_dir = os.path.expanduser('~/git/MRP/data/bday_dataset/dataset')
+    # create_scaling_dict(ds_dir)
+    # scale_dataset(ds_dir)

@@ -29,7 +29,8 @@ src_dir = str(Path(script_dir).parents[1])
 sys.path.append(src_dir)
 
 from src.vulcan_configs.vulcan_config_utils import CopyManager
-from src.neural_nets.dataset_utils import VulcanDataset, unscale_example
+from src.neural_nets.dataset_utils import unscale_example, create_scaling_dict, scale_dataset
+from src.neural_nets.dataloaders import SingleVulcanDataset
 
 # TODO: don't know if this is nescessary
 # Limiting the number of threads
@@ -38,7 +39,7 @@ os.environ["OMP_NUM_THREADS"] = "1"
 
 def cut_values(dataset_dir, threshold, spec_list):
     # dataset loader
-    vulcan_dataset = VulcanDataset(dataset_dir)
+    vulcan_dataset = SingleVulcanDataset(dataset_dir)
     dataloader = DataLoader(vulcan_dataset, batch_size=1,
                             shuffle=True,
                             num_workers=0)
@@ -226,7 +227,8 @@ def generate_inputs(mode):
     if mode == 'clipped':
         # clipping of values
         y_mix_ini = np.where(y_mix_ini < 1e-14, 1e-14, y_mix_ini)
-        top_flux = np.where(top_flux < 1e-10, 1e-10, top_flux)
+
+    top_flux = np.where(top_flux < 1e-10, 1e-10, top_flux)
 
     # gravity
     g = data_atm.g  # (150,)    # TODO: waarom ook deze?
@@ -332,52 +334,61 @@ def generate_input_output_pair(params):
     return entry
 
 
-def main(num_workers):
+def main(num_workers, generate=True):
     # setup directories
     script_dir = os.path.dirname(os.path.abspath(__file__))
     git_dir = str(Path(script_dir).parents[2])
-    output_dir = os.path.join(git_dir, 'MRP/data/christmas_dataset/vulcan_output')
-    config_dir = os.path.join(git_dir, 'MRP/data/christmas_dataset/configs')
+    # output_dir = os.path.join(git_dir, 'MRP/data/christmas_dataset/vulcan_output')
+    output_dir = os.path.join(git_dir, 'MRP/data/bday_dataset/vulcan_output')
+    # config_dir = os.path.join(git_dir, 'MRP/data/christmas_dataset/configs')
+    config_dir = os.path.join(git_dir, 'MRP/data/bday_dataset/configs')
     VULCAN_dir = os.path.join(git_dir, 'VULCAN')
 
-    mode = 'cut'    # '', 'clipped', 'cut'
+    mode = ''    # '', 'clipped', 'cut'
 
     if mode == '':
-        dataset_dir = os.path.join(git_dir, 'MRP/data/christmas_dataset/dataset')
+        dataset_dir = os.path.join(git_dir, 'MRP/data/bday_dataset/dataset')
     else:
-        dataset_dir = os.path.join(git_dir, f'MRP/data/christmas_dataset/{mode}_dataset')
+        dataset_dir = os.path.join(git_dir, f'MRP/data/bday_dataset/{mode}_dataset')
 
-    # create dataset dir
-    if os.path.isdir(dataset_dir):
-        shutil.rmtree(dataset_dir)
-    os.mkdir(dataset_dir)
+    if generate:
+        # create dataset dir
+        if os.path.isdir(dataset_dir):
+            shutil.rmtree(dataset_dir)
+        os.mkdir(dataset_dir)
 
-    # extract saved config files, but in .txt format for some reason?
-    config_files = glob.glob(os.path.join(config_dir, '*.py'))
+        # extract saved config files, but in .txt format for some reason?
+        config_files = glob.glob(os.path.join(config_dir, '*.py'))
 
-    # setup copy manager
-    BaseManager.register('CopyManager', CopyManager)
-    manager = BaseManager()
-    manager.start()
-    mp_copy_manager = manager.CopyManager(num_workers, VULCAN_dir)
+        # setup copy manager
+        BaseManager.register('CopyManager', CopyManager)
+        manager = BaseManager()
+        manager.start()
+        mp_copy_manager = manager.CopyManager(num_workers, VULCAN_dir)
 
-    # setup_mp_params
-    mp_params = [(i, config_file, mp_copy_manager, output_dir, dataset_dir, mode) for i, config_file in enumerate(config_files)]
+        # setup_mp_params
+        mp_params = [(i, config_file, mp_copy_manager, output_dir, dataset_dir, mode) for i, config_file in enumerate(config_files)]
 
-    # run parallel
-    print(f'running with {num_workers} workers...')
-    with mp.get_context("spawn").Pool(processes=num_workers) as pool:
-        entries = list(tqdm(pool.imap(generate_input_output_pair, mp_params),  # return results otherwise it doesn't work properly
-                            total=len(mp_params)))
+        # run parallel
+        print(f'running with {num_workers} workers...')
+        with mp.get_context("spawn").Pool(processes=num_workers) as pool:
+            entries = list(tqdm(pool.imap(generate_input_output_pair, mp_params),  # return results otherwise it doesn't work properly
+                                total=len(mp_params)))
 
-    # save index dict
-    index_dict = {}
-    for entry in entries:
-        index_dict.update(entry)
+        # save index dict
+        index_dict = {}
+        for entry in entries:
+            index_dict.update(entry)
 
-    index_dict_file = os.path.join(dataset_dir, 'index_dict.pkl')
-    with open(index_dict_file, 'wb') as f:
-        pickle.dump(index_dict, f)
+        index_dict_file = os.path.join(dataset_dir, 'index_dict.pkl')
+        with open(index_dict_file, 'wb') as f:
+            pickle.dump(index_dict, f)
+
+    # save scaling dict
+    create_scaling_dict(dataset_dir)
+
+    # scale dataset
+    scale_dataset(dataset_dir)
 
     # save species list
     os.chdir(VULCAN_dir)
@@ -385,10 +396,10 @@ def main(num_workers):
 
     from chem_funs import spec_list
 
-    spec_list = np.array(spec_list)
-
     if mode == 'cut':
+        spec_list = np.array(spec_list)
         spec_list = cut_values(dataset_dir, 1e-30, spec_list)
+        spec_list = spec_list.tolist()
 
     species_list_file = os.path.join(dataset_dir, 'species_list.pkl')
     with open(species_list_file, 'wb') as f:
@@ -400,9 +411,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run the vulcan configurations')
     parser.add_argument('-w', '--workers', help='Number of multiprocessing-subprocesses', type=int, default=mp.cpu_count() - 1,
                         required=False)
-    # parser.add_argument('-b', '--batch', help='Number of pairs per .pt file', type=int, default=64,
-    #                     required=False)
+    parser.add_argument('-g', '--generate', help='regenerate dataset?', type=bool, default=True,
+                        required=False)
     args = vars(parser.parse_args())
 
     # run main
-    main(num_workers=args['workers'])
+    main(num_workers=args['workers'], generate=args['generate'])
