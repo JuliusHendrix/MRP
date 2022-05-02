@@ -193,13 +193,13 @@ def derivative(x, y):
 
 def derivative_MSE(x_i, y_i, x_o, y_o):
     # input derivatives
-    y_1_i, x_1_i = derivative(
+    x_1_i, y_1_i = derivative(
         x=x_i,
         y=y_i,
     )
 
     # output derivatives
-    y_1_o, x_1_o = derivative(
+    x_1_o, y_1_o = derivative(
         x=x_o,
         y=y_o,
     )
@@ -211,23 +211,23 @@ def derivative_MSE(x_i, y_i, x_o, y_o):
 
 def double_derivative_MSE(x_i, y_i, x_o, y_o):
     # input derivatives
-    y_1_i, x_1_i = derivative(
+    x_1_i, y_1_i = derivative(
         x=x_i,
         y=y_i,
     )
 
-    y_2_i, x_2_i = derivative(
+    x_2_i, y_2_i = derivative(
         x=x_1_i,
         y=y_1_i
     )
 
     # output derivatives
-    y_1_o, x_1_o = derivative(
+    x_1_o, y_1_o = derivative(
         x=x_o,
         y=y_o,
     )
 
-    y_2_o, x_2_o = derivative(
+    x_2_o, y_2_o = derivative(
         x=x_1_o,
         y=y_1_o
     )
@@ -264,7 +264,26 @@ def plot_vars(inputs, outputs, scaling_params, spec_list, model_name):
 
 def plot_y_mix(inputs, outputs, decoded_outputs, decoded_model_outputs, scaling_params, spec_list, model_name):
     unscaled_dict = unscale_inputs_outputs_model_outputs(inputs, outputs, decoded_outputs, decoded_model_outputs, scaling_params)
-    fig = plot_y_mix_core(unscaled_dict, spec_list, model_name, show=False, save=False)
+    fig = plot_y_mix_core(unscaled_dict, spec_list, model_name, show=False, save=False, Pco=True)
+    return fig
+
+
+def plot_core_y_mixs( y_mix_decoded_outputs, y_mix_decoded_model_outputs, scales, spec_list, model_name):
+    # y_mixs_unscaled = unscale(y_mixs, *scales).detach().numpy()[0]
+    y_mix_decoded_outputs_unscaled = unscale(y_mix_decoded_outputs, *scales).detach().numpy()[0]
+    y_mix_decoded_model_outputs_unscaled = unscale(y_mix_decoded_model_outputs, *scales).detach().numpy()[0]
+    unscaled_dict = {
+        # 'outputs': {
+        #     'y_mix': y_mixs_unscaled,
+        # },
+        'decoded_outputs': {
+            'y_mix_ini': y_mix_decoded_outputs_unscaled,
+        },
+        'decoded_model_outputs': {
+            'y_mix_ini': y_mix_decoded_model_outputs_unscaled,
+        }
+    }
+    fig = plot_y_mix_core(unscaled_dict, spec_list, model_name, show=False, save=False, Pco=False)
     return fig
 
 
@@ -280,6 +299,7 @@ def plot_variable(x, y, y_o, scales, model_name, xlabel, ylabel, xlog=False, ylo
     y_o_unscale = unscale(y_o, *scales).detach().numpy()[0]
     fig = plot_single_variable(x, y_unscale, y_o_unscale, model_name, xlabel, ylabel, xlog, ylog)
     return fig
+
 
 if __name__ == "__main__":
     # calculate_padding(input_shape=(150, 69),

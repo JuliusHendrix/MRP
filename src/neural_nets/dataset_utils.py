@@ -8,7 +8,9 @@ import numpy as np
 from tqdm import tqdm
 import shutil
 
-zero_value = 1e-99
+zero_value = torch.tensor(1e-45).double()
+inf_value = torch.tensor(1e38).double()
+
 same_scale_items = np.array([
     ['inputs', 'y_mix_ini', 'outputs', 'y_mix']
 ])
@@ -201,10 +203,16 @@ def reverse_distribution_standardization(prop, prop_mean, prop_std):
         return prop * prop_std + prop_mean
 
 
-# TODO: scale dataset before training to speed up!!
-def scale(prop, prop_mean, prop_std, prop_min, prop_max):
-    # remove zero values
-    prop[prop == 0] = zero_value
+def scale(prop, prop_mean, prop_std, prop_min, prop_max, nans=False):
+    # cap values
+
+    prop = prop.double()
+    prop = torch.where(prop < zero_value,
+                       float('nan') if nans else zero_value,    # TODO: float to double?
+                       prop)
+
+    prop = torch.where(prop > inf_value, inf_value, prop)
+
     standardized_prop = distribution_standardization(torch.log10(prop), prop_mean, prop_std)
 
     if prop_min == prop_max:
@@ -219,8 +227,25 @@ def unscale(prop, prop_mean, prop_std, prop_min, prop_max):
     else:
         unnorm_prop = prop * (prop_max - prop_min) + prop_min
     unscaled_prop = 10**reverse_distribution_standardization(unnorm_prop, prop_mean, prop_std)
-    unscaled_prop[unscaled_prop <= zero_value] = 0.0
+    # unscaled_prop[unscaled_prop <= zero_value] = 0.0
     return unscaled_prop
+
+
+def scale_example(example, scaling_dict, nans=False):
+    scaled_example = {
+        'inputs': {},
+        'outputs': {}
+    }
+
+    for top_key in scaled_example.keys():
+        for (key, value), scales in zip(example[top_key].items(), scaling_dict[top_key].values()):
+            # scale values
+            scaled_value = scale(value, *scales, nans=nans)
+            scaled_example[top_key].update(
+                {key: scaled_value}
+            )
+
+    return scaled_example
 
 
 def unscale_example(example, scaling_params):
@@ -308,22 +333,6 @@ def scale_dataset(dataset_dir):
     with open(scaling_file, 'rb') as f:
         scaling_dict = pickle.load(f)
 
-    def scale_example(example):
-        scaled_example = {
-            'inputs': {},
-            'outputs': {}
-        }
-
-        for top_key in scaled_example.keys():
-            for (key, value), scales in zip(example[top_key].items(), scaling_dict[top_key].values()):
-                # scale values
-                scaled_value = scale(value, *scales)
-                scaled_example[top_key].update(
-                    {key: scaled_value}
-                )
-
-        return scaled_example
-
     torch_files = glob.glob(os.path.join(dataset_dir, '*.pt'))
 
     scaled_dataset_dir = os.path.join(dataset_dir, 'scaled_dataset/')
@@ -336,7 +345,7 @@ def scale_dataset(dataset_dir):
     # loop through examples
     for torch_file in tqdm(torch_files, desc='scaling torch files'):
         example = torch.load(torch_file)
-        scaled_example = scale_example(example)
+        scaled_example = scale_example(example, scaling_dict)
 
         torch_filename = os.path.basename(torch_file)
         scaled_torch_file = os.path.join(scaled_dataset_dir, torch_filename)

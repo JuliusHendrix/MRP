@@ -21,7 +21,7 @@ class VulcanDataset(Dataset):
     def __init__(self, dataset_dir):
         self.dataset_dir = dataset_dir
 
-        index_file = os.path.join(dataset_dir, 'index_dict.pkl')
+        index_file = os.path.join(dataset_dir, '../index_dict.pkl')
         with open(index_file, 'rb') as f:
             self.index_dict = pickle.load(f)
 
@@ -78,7 +78,7 @@ class MixingRatioVulcanDataset(DoubleVulcanDataset):
         super().__init__(dataset_dir)
 
         # get species list
-        spec_file = os.path.join(dataset_dir, 'species_list.pkl')
+        spec_file = os.path.join(dataset_dir, '../species_list.pkl')
         with open(spec_file, 'rb') as f:
             spec_list = pickle.load(f)
 
