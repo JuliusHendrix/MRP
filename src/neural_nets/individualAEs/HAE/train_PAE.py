@@ -38,12 +38,12 @@ def main():
         },
 
         model_params={
-            'latent_dim': 30,
+            'latent_dim': 2,
             'layer_size': 256
         },
 
         optimizer_params={
-            'lr': 1e-5
+            'lr': 1e-6
         },
 
         loss_params={
@@ -56,7 +56,7 @@ def main():
         },
 
         train_params={
-            'epochs': 100,
+            'epochs': 200,
             'writer_interval': 10,
             'variable_key': 'Pco'
         },

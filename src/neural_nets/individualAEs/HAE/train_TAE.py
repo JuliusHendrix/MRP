@@ -28,7 +28,7 @@ def main():
     params = dict(
         name='TAE',
 
-        gpu=1,
+        gpu=0,
 
         ds_params={
             'batch_size': 4,
@@ -38,25 +38,26 @@ def main():
         },
 
         model_params={
-            'latent_dim': 30,
-            'layer_size': 256
+            'latent_dim': 100,
+            'layer_size': 256,
+            'activation_function': 'tanh',
         },
 
         optimizer_params={
-            'lr': 1e-5
+            'lr': 1e-7
         },
 
         loss_params={
             'LossWeightScheduler_d': LossWeightScheduler(
-                start_epoch=20,
-                end_epoch=70,
-                start_weight=0.1,
-                end_weight=1e3
+                start_epoch=0,
+                end_epoch=1,
+                start_weight=0,
+                end_weight=0
             ),
         },
 
         train_params={
-            'epochs': 100,
+            'epochs': 200,
             'writer_interval': 10,
             'variable_key': 'Tco'
         },

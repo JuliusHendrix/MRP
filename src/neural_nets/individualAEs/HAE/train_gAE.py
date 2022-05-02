@@ -28,7 +28,7 @@ def main():
     params = dict(
         name='gAE',
 
-        gpu=0,
+        gpu=1,
 
         ds_params={
             'batch_size': 4,
@@ -38,7 +38,7 @@ def main():
         },
 
         model_params={
-            'latent_dim': 30,
+            'latent_dim': 75,
             'layer_size': 256
         },
 
@@ -48,15 +48,15 @@ def main():
 
         loss_params={
             'LossWeightScheduler_d': LossWeightScheduler(
-                start_epoch=20,
-                end_epoch=70,
+                start_epoch=100,
+                end_epoch=200,
                 start_weight=0.1,
                 end_weight=1e3
             ),
         },
 
         train_params={
-            'epochs': 100,
+            'epochs': 300,
             'writer_interval': 10,
             'variable_key': 'g'
         },

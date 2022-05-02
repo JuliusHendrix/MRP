@@ -4,9 +4,6 @@ from pathlib import Path
 import shutil
 import numpy as np
 
-import matplotlib
-matplotlib.use('Agg')
-
 from tqdm import tqdm
 import torch
 import torch.nn as nn
@@ -22,7 +19,7 @@ sys.path.append(src_dir)
 from src.neural_nets.dataloaders import SingleVulcanDataset
 from src.neural_nets.dataset_utils import make_data_loaders
 from src.neural_nets.NN_utils import move_to, plot_variable, derivative_MSE, LossWeightScheduler
-from FluxAE import FluxAE
+from src.neural_nets.individualAEs.FAE.FluxAE import FluxAE
 
 x_values = torch.arange(2500)
 
@@ -50,19 +47,21 @@ def loss_fn(device, flux, flux_decoded, diff_weight):
     return loss, diff_loss
 
 
-def model_step(device, model, flux, diff_weight):
+def model_step(device, model, example):
     # extract inputs
+    flux = move_to(example['inputs']['top_flux'], device)
 
     # output of autoencoder
     flux_decoded = model(flux)
 
-    # Calculating the loss function
-    loss, diff_loss = loss_fn(device, flux, flux_decoded, diff_weight)
-
-    return loss, diff_loss
+    return flux, flux_decoded
 
 
 def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
+    # headless plotting
+    import matplotlib
+    matplotlib.use('Agg')
+
     # setup pytorch
     device = torch.device(f"cuda:{params['gpu']}" if torch.cuda.is_available() else "cpu")
     print(f'running on device: {device}')
@@ -91,7 +90,7 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
 
     # load datasets
     train_loader, test_loader, validation_loader = make_data_loaders(SingleVulcanDataset,
-                                                                     os.path.join(dataset_dir, 'scaled_dataset/'),
+                                                                     os.path.join(dataset_dir, 'interpolated_dataset/'),
                                                                      **params['ds_params'])
 
     # get scaling parameters
@@ -129,9 +128,8 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
 
             # loop through examples
             for n_iter, example in enumerate(train_epoch):
-                flux = move_to(example['inputs']['top_flux'], device)
-
-                loss, diff_loss = model_step(device, model, flux, diff_weight)
+                flux, flux_decoded = model_step(device, model, example)
+                loss, diff_loss = loss_fn(device, flux, flux_decoded, diff_weight)
 
                 # update gradients
                 optimizer.zero_grad()
@@ -162,9 +160,8 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
 
             # loop through examples
             for n_iter, example in enumerate(test_epoch):
-                flux = move_to(example['inputs']['top_flux'], device)
-
-                loss, diff_loss = model_step(device, model, flux, diff_weight)
+                flux, flux_decoded = model_step(device, model, example)
+                loss, diff_loss = loss_fn(device, flux, flux_decoded, diff_weight)
 
                 tot_loss += loss.detach()
                 tot_diff_loss += diff_loss.detach()
@@ -224,9 +221,8 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
 
         # loop through examples
         for n_iter, example in enumerate(validation):
-            flux = move_to(example['inputs']['top_flux'], device)
-
-            loss, diff_loss = model_step(device, model, flux, diff_weight)
+            flux, flux_decoded = model_step(device, model, example)
+            loss, diff_loss = loss_fn(device, flux, flux_decoded, diff_weight)
 
             tot_loss += loss.detach()
             tot_diff_loss += diff_loss.detach()
@@ -287,7 +283,8 @@ def main():
 
         model_params={
             'latent_dim': 256,
-            'layer_size': 1024
+            'layer_size': 1024,
+            'activation_function': 'tanh',
         },
 
         optimizer_params={
@@ -296,15 +293,15 @@ def main():
 
         loss_params={
             'LossWeightScheduler_d': LossWeightScheduler(
-                start_epoch=20,
-                end_epoch=70,
+                start_epoch=0,
+                end_epoch=1,
                 start_weight=0,
                 end_weight=0
             ),
         },
 
         train_params={
-            'epochs': 100,
+            'epochs': 200,
             'writer_interval': 10,
         }
     )

@@ -4,9 +4,6 @@ from pathlib import Path
 import shutil
 import numpy as np
 
-import matplotlib
-matplotlib.use('Agg')
-
 from tqdm import tqdm
 import torch
 import torch.nn as nn
@@ -51,19 +48,21 @@ def loss_fn(device, variable, variable_decoded, diff_weight):
     return loss, diff_loss
 
 
-def model_step(device, model, variable, diff_weight):
+def model_step(device, model, example, variable_key):
     # extract inputs
+    variable = move_to(example['inputs'][variable_key], device)
 
     # output of autoencoder
     variable_decoded = model(variable)
 
-    # Calculating the loss function
-    loss, diff_loss = loss_fn(device, variable, variable_decoded, diff_weight)
-
-    return loss, diff_loss
+    return variable, variable_decoded
 
 
 def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
+    # headless plotting
+    import matplotlib
+    matplotlib.use('Agg')
+
     # setup pytorch
     device = torch.device(f"cuda:{params['gpu']}" if torch.cuda.is_available() else "cpu")
     print(f'running on device: {device}')
@@ -92,7 +91,7 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
 
     # load datasets
     train_loader, test_loader, validation_loader = make_data_loaders(SingleVulcanDataset,
-                                                                     os.path.join(dataset_dir, 'scaled_dataset/'),
+                                                                     os.path.join(dataset_dir, 'interpolated_dataset/'),
                                                                      **params['ds_params'])
     # get scaling parameters
     scaling_file = os.path.join(dataset_dir, 'scaling_dict.pkl')
@@ -134,9 +133,8 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
 
             # loop through examples
             for n_iter, example in enumerate(train_epoch):
-                variable = move_to(example['inputs'][params['train_params']['variable_key']], device)
-
-                loss, diff_loss = model_step(device, model, variable, diff_weight)
+                variable, variable_decoded = model_step(device, model, variable, params['train_params']['variable_key'])
+                loss, diff_loss = loss_fn(device, variable, variable_decoded, diff_weight)
 
                 # update gradients
                 optimizer.zero_grad()
@@ -167,9 +165,8 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
 
             # loop through examples
             for n_iter, example in enumerate(test_epoch):
-                variable = move_to(example['inputs'][params['train_params']['variable_key']], device)
-
-                loss, diff_loss = model_step(device, model, variable, diff_weight)
+                variable, variable_decoded = model_step(device, model, variable, params['train_params']['variable_key'])
+                loss, diff_loss = loss_fn(device, variable, variable_decoded, diff_weight)
 
                 tot_loss += loss.detach()
                 tot_diff_loss += diff_loss.detach()
@@ -178,7 +175,7 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
                 # test_epoch.set_postfix(loss=loss.item())
 
         # show matplotlib graph every 10 epochs
-        if epoch % 5 == 0 or epoch == epochs - 1:
+        if epoch % 10 == 0 or epoch == epochs - 1:
             # extract inputs
             variable = move_to(example['inputs'][params['train_params']['variable_key']], device)
 
@@ -229,9 +226,8 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
 
         # loop through examples
         for n_iter, example in enumerate(validation):
-            variable = move_to(example['inputs'][params['train_params']['variable_key']], device)
-
-            loss, diff_loss = model_step(device, model, variable, diff_weight)
+            variable, variable_decoded = model_step(device, model, variable, params['train_params']['variable_key'])
+            loss, diff_loss = loss_fn(device, variable, variable_decoded, diff_weight)
 
             tot_loss += loss.detach()
             tot_diff_loss += diff_loss.detach()

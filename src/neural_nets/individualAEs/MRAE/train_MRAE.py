@@ -1,12 +1,6 @@
 import os
 import sys
 from pathlib import Path
-import shutil
-import numpy as np
-
-import matplotlib
-matplotlib.use('Agg')
-
 from tqdm import tqdm
 import torch
 import torch.nn as nn
@@ -21,8 +15,8 @@ sys.path.append(src_dir)
 
 from src.neural_nets.dataloaders import MixingRatioVulcanDataset
 from src.neural_nets.dataset_utils import make_data_loaders
-from src.neural_nets.NN_utils import move_to, plot_single_y_mix, derivative_MSE, LossWeightScheduler
-from MixingRatioAE import MixingRatioAE
+from src.neural_nets.NN_utils import move_to, plot_single_y_mix, derivative_MSE, LossWeightScheduler, plot_variable
+from src.neural_nets.individualAEs.MRAE.MixingRatioAE import MixingRatioAE
 
 height_values = torch.arange(150)
 
@@ -51,19 +45,21 @@ def loss_fn(device, y_mix, y_mix_decoded, diff_weight):
     return loss, diff_loss
 
 
-def model_step(device, model, y_mix, diff_weight):
+def model_step(device, model, spec_example):
     # extract inputs
+    y_mix = move_to(spec_example['species_mr'], device)
 
     # output of autoencoder
     y_mix_decoded = model(y_mix)
 
-    # Calculating the loss function
-    loss, diff_loss = loss_fn(device, y_mix, y_mix_decoded, diff_weight)
-
-    return loss, diff_loss
+    return y_mix, y_mix_decoded
 
 
 def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
+    # headless plotting
+    import matplotlib
+    matplotlib.use('Agg')
+
     # setup pytorch
     device = torch.device(f"cuda:{params['gpu']}" if torch.cuda.is_available() else "cpu")
     print(f'running on device: {device}')
@@ -92,12 +88,13 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
 
     # load datasets
     train_loader, test_loader, validation_loader = make_data_loaders(MixingRatioVulcanDataset,
-                                                                     os.path.join(dataset_dir, 'scaled_dataset/'),
+                                                                     os.path.join(dataset_dir, 'interpolated_dataset/'),
                                                                      **params['ds_params'])
     # get scaling parameters
     scaling_file = os.path.join(dataset_dir, 'scaling_dict.pkl')
     with open(scaling_file, 'rb') as f:
         scaling_params = pickle.load(f)
+        print(f'{scaling_params = }')
 
     # get species list
     spec_file = os.path.join(dataset_dir, 'species_list.pkl')
@@ -134,9 +131,8 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
 
             # loop through examples
             for n_iter, spec_example in enumerate(train_epoch):
-                y_mix = move_to(spec_example['species_mr'], device)
-
-                loss, diff_loss = model_step(device, model, y_mix, diff_weight)
+                y_mix, y_mix_decoded = model_step(device, model, spec_example)
+                loss, diff_loss = loss_fn(device, y_mix, y_mix_decoded, diff_weight)
 
                 # update gradients
                 optimizer.zero_grad()
@@ -167,9 +163,8 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
 
             # loop through examples
             for n_iter, spec_example in enumerate(test_epoch):
-                y_mix = move_to(spec_example['species_mr'], device)
-
-                loss, diff_loss = model_step(device, model, y_mix, diff_weight)
+                y_mix, y_mix_decoded = model_step(device, model, spec_example)
+                loss, diff_loss = loss_fn(device, y_mix, y_mix_decoded, diff_weight)
 
                 tot_loss += loss.detach()
                 tot_diff_loss += diff_loss.detach()
@@ -178,7 +173,7 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
                 # test_epoch.set_postfix(loss=loss.item())
 
         # show matplotlib graph every 10 epochs
-        if epoch % 5 == 0 or epoch == epochs - 1:
+        if epoch % 10 == 0 or epoch == epochs - 1:
             # extract inputs
             y_mix = move_to(spec_example['species_mr'], device)
 
@@ -190,10 +185,16 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
             # scales
             scales = scaling_params['inputs']['y_mix_ini']
 
-            fig = plot_single_y_mix(
-                move_to(y_mix, device=torch.device('cpu')),
-                move_to(y_mix_decoded, device=torch.device('cpu')),
-                sp_idx, spec_list, scales, model_name
+            fig = plot_variable(
+                x=move_to(height_values, device=torch.device('cpu')),
+                y=move_to(y_mix, device=torch.device('cpu')),
+                y_o=move_to(y_mix_decoded, device=torch.device('cpu')),
+                scales=scales,
+                model_name=model_name + '\n' + spec_list[sp_idx],
+                xlabel='height layer',
+                ylabel='Mixing ratio',
+                xlog=False,
+                ylog=True
             )
 
             writer.add_figure('Plot', fig, epoch)
@@ -202,6 +203,7 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
         avg_test_loss = tot_loss / len(test_loader)
         writer.add_scalar('Epoch loss/test', avg_test_loss, epoch)
 
+        # TODO: average diff_loss is zero
         avg_diff_loss = tot_diff_loss / len(test_loader)
         writer.add_scalar('Epoch diff loss/test', avg_diff_loss, epoch)
 
@@ -225,9 +227,8 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
 
         # loop through examples
         for n_iter, spec_example in enumerate(validation):
-            y_mix = move_to(spec_example['species_mr'], device)
-
-            loss, diff_loss = model_step(device, model, y_mix, diff_weight)
+            y_mix, y_mix_decoded = model_step(device, model, spec_example)
+            loss, diff_loss = loss_fn(device, y_mix, y_mix_decoded, diff_weight)
 
             tot_loss += loss.detach()
             tot_diff_loss += diff_loss.detach()
@@ -275,9 +276,9 @@ def main():
         os.mkdir(save_model_dir)
 
     params = dict(
-        name='MRAE_d',
+        name='MRAE_d_interp',
 
-        gpu=0,
+        gpu=1,
 
         ds_params={
             'batch_size': 32,
@@ -288,7 +289,8 @@ def main():
 
         model_params={
             'latent_dim': 30,
-            'layer_size': 256
+            'layer_size': 256,
+            'activation_function': 'tanh',
         },
 
         optimizer_params={
@@ -297,15 +299,15 @@ def main():
 
         loss_params={
             'LossWeightScheduler_d': LossWeightScheduler(
-                start_epoch=20,
-                end_epoch=70,
-                start_weight=0.1,
-                end_weight=1e3
+                start_epoch=0,
+                end_epoch=1,
+                start_weight=0,
+                end_weight=1
             ),
         },
 
         train_params={
-            'epochs': 100,
+            'epochs': 200,
             'writer_interval': 10,
         }
     )
