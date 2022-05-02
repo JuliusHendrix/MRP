@@ -3,9 +3,6 @@ import sys
 from pathlib import Path
 import shutil
 import numpy as np
-import matplotlib
-
-matplotlib.use('Agg')
 
 from tqdm import tqdm
 import torch
@@ -22,8 +19,12 @@ sys.path.append(src_dir)
 from src.neural_nets.dataset_utils import make_data_loaders
 from src.neural_nets.NN_utils import multiple_MSELoss_dict, move_to, derivative_MSE, double_derivative_MSE, plot_vars, \
     LossWeightScheduler
-from autoencoder_large_ls import AutoEncoder
+# from autoencoder_large_ls import AutoEncoder
+from autoencoder_large_ls_cut import AutoEncoder
+
 # from autoencoder_large_ls_conv import AutoEncoder
+
+num_species = 45
 
 
 def loss_fn(device, inputs, outputs, diff_weight, ddiff_weight, loss_weights):
@@ -38,9 +39,9 @@ def loss_fn(device, inputs, outputs, diff_weight, ddiff_weight, loss_weights):
     # input-outputs pairs
     io_pairs = [
         (  # y_mix_ini
-            inputs['Pco'][:, None, :].tile(1, 69, 1),
+            inputs['Pco'][:, None, :].tile(1, num_species, 1),
             inputs['y_mix_ini'].permute(0, 2, 1),
-            outputs['Pco'][:, None, :].tile(1, 69, 1),
+            outputs['Pco'][:, None, :].tile(1, num_species, 1),
             outputs['y_mix_ini'].permute(0, 2, 1)
         ),
         (  # TP
@@ -209,7 +210,6 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
                                                                    ddiff_weight=ddiff_weight)
 
                 tot_loss += loss.detach()
-
                 tot_diff_loss += diff_loss.detach()
                 tot_ddiff_loss += ddiff_loss.detach()
 
@@ -281,7 +281,6 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
                                                                ddiff_weight=ddiff_weight)
 
             tot_loss += loss.detach()
-
             tot_diff_loss += diff_loss.detach()
             tot_ddiff_loss += ddiff_loss.detach()
 
@@ -302,9 +301,11 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
     validation_diff_loss = tot_diff_loss / len(validation_loader)
     validation_ddiff_loss = tot_ddiff_loss / len(validation_loader)
 
-    metric_dict = {"Validation/loss": validation_loss,
-                   "Validation/diff loss": validation_diff_loss,
-                   "Validation/ddiff loss": validation_ddiff_loss}
+    metric_dict = {
+        "Validation/loss": validation_loss,
+        "Validation/diff loss": validation_diff_loss,
+        "Validation/ddiff loss": validation_ddiff_loss
+    }
 
     for i, avg_ind_loss in enumerate(validation_ind_losses):
         metric_dict.update(
@@ -332,7 +333,8 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     MRP_dir = str(Path(script_dir).parents[2])
     # dataset_dir = os.path.join(MRP_dir, 'data/bday_dataset/dataset')
-    dataset_dir = os.path.join(MRP_dir, 'data/christmas_dataset/clipped_dataset')
+    # dataset_dir = os.path.join(MRP_dir, 'data/christmas_dataset/clipped_dataset')
+    dataset_dir = os.path.join(MRP_dir, 'data/christmas_dataset/cut_dataset')
     save_model_dir = os.path.join(script_dir, '../saved_models')
     log_dir = os.path.join(script_dir, '../runs')
 
@@ -341,9 +343,9 @@ def main():
         os.mkdir(save_model_dir)
 
     params = dict(
-        name='AE2_large_d_clipped',
+        name='AE2_large_d_cut',
 
-        gpu=0,
+        gpu=1,
 
         load_model=False,
         state_dict="AE2_large_dd,hparams={'latent_dim': 4096, 'lr': 0.0001}_state_dict",

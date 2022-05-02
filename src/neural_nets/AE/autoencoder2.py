@@ -236,24 +236,23 @@ class AutoEncoder(nn.Module):
 
         y_mix_ini = self.y_mix_ini_decoder(decoded_y_mix_ini).flatten(start_dim=1, end_dim=2)    # [batch, 1, 150, 69]
 
-        return y_mix_ini, top_flux, wavelengths, Tco, Pco, g, gravity
+        outputs = {
+            'y_mix_ini': y_mix_ini,
+            'top_flux': top_flux,
+            'wavelengths': wavelengths,
+            'Tco': Tco,
+            'Pco': Pco,
+            'g': g,
+            'gravity': gravity
+        }
+
+        return outputs
 
     def forward(self, inputs):
         # encode
         latent = self.encode(**inputs)
 
         # decode
-        decoded_y_mix_ini, decoded_top_flux, decoded_wavelengths, decoded_Tco, decoded_Pco, decoded_g, decoded_gravity \
-            = self.decode(latent)
-
-        outputs = {
-            'y_mix_ini': decoded_y_mix_ini,
-            'top_flux': decoded_top_flux,
-            'wavelengths': decoded_wavelengths,
-            'Tco': decoded_Tco,
-            'Pco': decoded_Pco,
-            'g': decoded_g,
-            'gravity': decoded_gravity
-        }
+        outputs =  self.decode(latent)
 
         return outputs
