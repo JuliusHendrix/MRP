@@ -134,5 +134,9 @@ src/vulcan_configs/configs/
 src/neural_nets/runs/
 src/neural_nets/saved_models/
 .idea
+src/visualization/plot_AE_performance/images/
+src/visualization/plot_AE_performance/performance_dicts
+src/visualization/plot_core_performance/images/
+src/visualization/plot_core_performance/performance_dicts/
 
 data
