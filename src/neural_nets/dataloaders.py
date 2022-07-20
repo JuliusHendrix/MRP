@@ -27,8 +27,9 @@ class VulcanDataset(Dataset):
 
 
 class SingleVulcanDataset(VulcanDataset):
-    def __init__(self, dataset_dir):
+    def __init__(self, dataset_dir, time_series_evaluation=False):
         super().__init__(dataset_dir)
+        self.time_series_evaluation = time_series_evaluation
 
     def load_example(self, idx):
         if torch.is_tensor(idx):
@@ -36,6 +37,9 @@ class SingleVulcanDataset(VulcanDataset):
 
         filename = f'{idx:04}.pt'
         example = torch.load(os.path.join(self.dataset_dir, filename))
+
+        if self.time_series_evaluation:
+            example['outputs']['y_mixs'] = example['outputs']['y_mixs'][-1, ...]
 
         return example
 

@@ -93,6 +93,10 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
     train_loader, test_loader, validation_loader = make_data_loaders(SingleVulcanDataset,
                                                                      os.path.join(dataset_dir, 'interpolated_dataset/'),
                                                                      **params['ds_params'])
+
+    # save validation indices
+    torch.save(validation_loader.dataset.indices, os.path.join(save_model_dir, f'{model_name}_validation_indices.pt'))
+
     # get scaling parameters
     scaling_file = os.path.join(dataset_dir, 'scaling_dict.pkl')
     with open(scaling_file, 'rb') as f:
@@ -133,7 +137,7 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
 
             # loop through examples
             for n_iter, example in enumerate(train_epoch):
-                variable, variable_decoded = model_step(device, model, variable, params['train_params']['variable_key'])
+                variable, variable_decoded = model_step(device, model, example, params['train_params']['variable_key'])
                 loss, diff_loss = loss_fn(device, variable, variable_decoded, diff_weight)
 
                 # update gradients
@@ -165,7 +169,7 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
 
             # loop through examples
             for n_iter, example in enumerate(test_epoch):
-                variable, variable_decoded = model_step(device, model, variable, params['train_params']['variable_key'])
+                variable, variable_decoded = model_step(device, model, example, params['train_params']['variable_key'])
                 loss, diff_loss = loss_fn(device, variable, variable_decoded, diff_weight)
 
                 tot_loss += loss.detach()
@@ -226,7 +230,7 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
 
         # loop through examples
         for n_iter, example in enumerate(validation):
-            variable, variable_decoded = model_step(device, model, variable, params['train_params']['variable_key'])
+            variable, variable_decoded = model_step(device, model, example, params['train_params']['variable_key'])
             loss, diff_loss = loss_fn(device, variable, variable_decoded, diff_weight)
 
             tot_loss += loss.detach()

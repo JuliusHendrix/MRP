@@ -12,7 +12,8 @@ sys.path.append(src_dir)
 
 
 class MlpCore(nn.Module):
-    def __init__(self, latent_dim, layer_size, num_hidden, activation_function, y_mix_latent_dim=None):
+    def __init__(self, latent_dim, layer_size, num_hidden, activation_function, dropout, batch_norm,
+                 y_mix_latent_dim=None, **kwargs):
         super().__init__()
 
         self.latent_dim = latent_dim
@@ -27,13 +28,19 @@ class MlpCore(nn.Module):
         else:
             raise ValueError('Activation function not supported')
 
-        # TODO: fix forward
-        # TODO: activation function every layer?
         # create core
         self.core = nn.ModuleList()
         self.core.append(nn.Linear(latent_dim, layer_size))
+
         for k in range(num_hidden):
             self.core.append(nn.Linear(layer_size, layer_size))
+
+            if batch_norm:
+                self.core.append(nn.BatchNorm1d(layer_size))
+
+            if dropout > 0:
+                self.core.append(nn.Dropout(dropout))
+
         self.core.append(nn.Linear(layer_size, self.latent_dim2))
 
     def forward(self, latent_input):

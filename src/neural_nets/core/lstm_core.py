@@ -13,8 +13,9 @@ sys.path.append(src_dir)
 
 # from: https://pytorch.org/tutorials/intermediate/seq2seq_translation_tutorial.html#sphx-glr-intermediate-seq2seq-translation-tutorial-py
 # also usefull: https://stats.stackexchange.com/questions/404955/examples-of-one-to-many-for-rnn-lstm
+# also nice: https://medium.com/analytics-vidhya/rnn-vs-gru-vs-lstm-863b0b7b1573
 class LSTMCore(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, steps, activation_function):
+    def __init__(self, input_size, hidden_size, output_size, steps, activation_function, **kwargs):
         super().__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -29,14 +30,14 @@ class LSTMCore(nn.Module):
         else:
             raise ValueError('Activation function not supported')
 
-        self.rnn = nn.GRU(input_size, hidden_size, batch_first=True)
+        self.lstm = nn.LSTM(input_size, hidden_size, batch_first=True)
         self.out = nn.Sequential(
             nn.Linear(hidden_size, input_size),
             self.activation_function(),
         )
 
     def forward(self, input, hidden, cell):
-        output, (hidden, cell) = self.rnn(input, (hidden, cell))   # (b, 1, hidden_size), ((1, b, hidden_size), (1, b, hidden_size))
+        output, (hidden, cell) = self.lstm(input, (hidden, cell))   # (b, 1, hidden_size), ((1, b, hidden_size), (1, b, hidden_size))
         output = self.out(output[:, 0, :])                  # (b, hidden_size)
 
         return output, hidden, cell

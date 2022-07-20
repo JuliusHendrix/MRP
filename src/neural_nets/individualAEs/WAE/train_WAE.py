@@ -91,6 +91,10 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
     train_loader, test_loader, validation_loader = make_data_loaders(SingleVulcanDataset,
                                                                      os.path.join(dataset_dir, 'interpolated_dataset/'),
                                                                      **params['ds_params'])
+
+    # save validation indices
+    torch.save(validation_loader.dataset.indices, os.path.join(save_model_dir, f'{model_name}_validation_indices.pt'))
+
     # get scaling parameters
     scaling_file = os.path.join(dataset_dir, 'scaling_dict.pkl')
     with open(scaling_file, 'rb') as f:
@@ -260,8 +264,8 @@ def main():
     dataset_dir = os.path.join(MRP_dir, 'data/bday_dataset/dataset')
     # dataset_dir = os.path.join(MRP_dir, 'data/christmas_dataset/clipped_dataset')
     # dataset_dir = os.path.join(MRP_dir, 'data/christmas_dataset/cut_dataset')
-    save_model_dir = os.path.join(MRP_dir, 'src/neural_nets/saved_models')
-    log_dir = os.path.join(MRP_dir, 'src/neural_nets/runs')
+    save_model_dir = os.path.join(MRP_dir, 'src/neural_nets/saved_models_final')
+    log_dir = os.path.join(MRP_dir, 'src/neural_nets/runs_final')
 
     # make save directory if not present
     if not os.path.isdir(save_model_dir):
@@ -281,11 +285,12 @@ def main():
 
         model_params={
             'latent_dim': 2,
-            'layer_size': 1024
+            'layer_size': 1024,
+            'activation_function': 'tanh',
         },
 
         optimizer_params={
-            'lr': 1e-6
+            'lr': 5e-7
         },
 
         loss_params={

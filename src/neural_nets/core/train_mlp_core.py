@@ -1,6 +1,7 @@
 import os
 import sys
 from pathlib import Path
+import torch
 
 from mlp_core import MlpCore
 from core_training_routine import train_core
@@ -17,8 +18,8 @@ def main():
     MRP_dir = str(Path(script_dir).parents[2])
     dataset_dir = os.path.join(MRP_dir, 'data/bday_dataset/dataset')
     # dataset_dir = os.path.join(MRP_dir, 'data/christmas_dataset/clipped_dataset')
-    save_model_dir = os.path.join(script_dir, '../saved_models')
-    log_dir = os.path.join(script_dir, '../runs')
+    save_model_dir = os.path.join(script_dir, '../saved_models_final')
+    log_dir = os.path.join(script_dir, '../runs_final')
 
     # remake the config directory
     if not os.path.isdir(save_model_dir):
@@ -42,18 +43,28 @@ def main():
             'latent_dim': (69 * 30 + 256 + 2 * 2 + 2 * 150),
             'layer_size': 4096,
             'y_mix_latent_dim': 69 * 30,
-            'num_hidden': 6,
+            'num_hidden': 10,
+            'dropout': 0,
+            'sigma': 0,
+            'weight_decay_norm': 0,
+            'batch_norm': False,
+            'time_series': False,
+        },
+
+        core_model_extra_params={  # because the filename became too long...
             'activation_function': 'tanh',
         },
 
         core_model_step=model_step,
+
+        loss_function=torch.nn.MSELoss(),
 
         optimizer_params={
             'lr': 1e-5
         },
 
         train_params={
-            'epochs': 200,
+            'epochs': 100,
             'writer_interval': 10,
         },
     )

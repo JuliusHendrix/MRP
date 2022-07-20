@@ -23,9 +23,9 @@ ae_params = dict(
 
     state_dicts={
         'mrae': "MRAE_d_interp,hparams={'latent_dim': 30, 'layer_size': 256, 'activation_function': 'tanh', 'lr': 1e-05}_state_dict",
-        'wae': "WAE,hparams={'latent_dim': 2, 'layer_size': 1024, 'lr': 1e-06}_state_dict",
+        'wae': "WAE,hparams={'latent_dim': 2, 'layer_size': 1024, 'activation_function': 'tanh', 'lr': 1e-07}_state_dict",
         'fae': "FAE,hparams={'latent_dim': 256, 'layer_size': 1024, 'activation_function': 'tanh', 'lr': 1e-05}_state_dict",
-        'pae': "PAE,hparams={'latent_dim': 2, 'layer_size': 256, 'lr': 1e-06}_state_dict",
+        'pae': "PAE,hparams={'latent_dim': 2, 'layer_size': 256, 'activation_function': 'tanh', 'lr': 1e-06}_state_dict",
         'tae': None,  # "TAE,hparams={'latent_dim': 75, 'layer_size': 256, 'lr': 1e-05}_state_dict",
         'gae': None,  # "gAE,hparams={'latent_dim': 75, 'layer_size': 256, 'lr': 1e-05}_state_dict",
     },

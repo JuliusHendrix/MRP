@@ -21,28 +21,12 @@ from src.neural_nets.individualAEs.MRAE.MixingRatioAE import MixingRatioAE
 height_values = torch.arange(150)
 
 
-def loss_fn(device, y_mix, y_mix_decoded, diff_weight):
+def loss_fn(device, y_mix, y_mix_decoded):
     loss = torch.mean(
         ((y_mix - y_mix_decoded) / y_mix) ** 2
     )
 
-    # soms is de batch size < 32 als er nog maar een paar over zijn
-    global height_values
-    height_values_batch = torch.tile(height_values[None, ...], dims=(y_mix.size()[0], 1))
-    height_values_batch = height_values_batch.to(device)
-
-    io_pair = (
-        height_values_batch,
-        y_mix,
-        height_values_batch,
-        y_mix_decoded
-    )
-
-    diff_loss = diff_weight * derivative_MSE(*io_pair)
-
-    loss += diff_loss
-
-    return loss, diff_loss
+    return loss
 
 
 def model_step(device, model, spec_example):
@@ -90,6 +74,9 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
     train_loader, test_loader, validation_loader = make_data_loaders(MixingRatioVulcanDataset,
                                                                      os.path.join(dataset_dir, 'interpolated_dataset/'),
                                                                      **params['ds_params'])
+    # save validation indices
+    torch.save(validation_loader.dataset.indices, os.path.join(save_model_dir, f'{model_name}_validation_indices.pt'))
+
     # get scaling parameters
     scaling_file = os.path.join(dataset_dir, 'scaling_dict.pkl')
     with open(scaling_file, 'rb') as f:
@@ -120,8 +107,6 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
     best_model_params = {}
 
     for epoch in range(epochs):
-        diff_weight = params['loss_params']['LossWeightScheduler_d'].get_weight(epoch)
-
         # TRAINING
         with tqdm(train_loader, unit='batch', desc=f'Train epoch {epoch}') as train_epoch:
             model.train()
@@ -132,7 +117,7 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
             # loop through examples
             for n_iter, spec_example in enumerate(train_epoch):
                 y_mix, y_mix_decoded = model_step(device, model, spec_example)
-                loss, diff_loss = loss_fn(device, y_mix, y_mix_decoded, diff_weight)
+                loss = loss_fn(device, y_mix, y_mix_decoded)
 
                 # update gradients
                 optimizer.zero_grad()
@@ -147,7 +132,6 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
                 # visualize steps with Tensorboard
                 if n_iter % writer_interval == 0:
                     writer.add_scalar('Batch/loss', loss, n_iter + epoch * len(train_loader))
-                    writer.add_scalar('Batch/diff_loss', diff_loss, n_iter + epoch * len(train_loader))
 
         # visualize epochs with Tensorboard
         avg_train_loss = tot_loss / len(train_loader)
@@ -159,15 +143,13 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
 
             # keep track of total losses
             tot_loss = 0
-            tot_diff_loss = 0
 
             # loop through examples
             for n_iter, spec_example in enumerate(test_epoch):
                 y_mix, y_mix_decoded = model_step(device, model, spec_example)
-                loss, diff_loss = loss_fn(device, y_mix, y_mix_decoded, diff_weight)
+                loss = loss_fn(device, y_mix, y_mix_decoded)
 
                 tot_loss += loss.detach()
-                tot_diff_loss += diff_loss.detach()
 
                 # update pbar
                 # test_epoch.set_postfix(loss=loss.item())
@@ -203,16 +185,13 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
         avg_test_loss = tot_loss / len(test_loader)
         writer.add_scalar('Epoch loss/test', avg_test_loss, epoch)
 
-        # TODO: average diff_loss is zero
-        avg_diff_loss = tot_diff_loss / len(test_loader)
-        writer.add_scalar('Epoch diff loss/test', avg_diff_loss, epoch)
-
-        writer.add_scalar('Epoch diff weight', diff_weight, epoch)
-
         # save best model params
         if avg_test_loss < best_loss:
             best_loss = avg_test_loss
             best_model_params = model.state_dict().copy()
+
+            # save the model
+            torch.save(best_model_params, os.path.join(save_model_dir, f'{model_name}_state_dict'))
 
     # load best model params
     model.load_state_dict(best_model_params)
@@ -223,26 +202,22 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
 
         # keep track of total losses
         tot_loss = 0
-        tot_diff_loss = 0
 
         # loop through examples
         for n_iter, spec_example in enumerate(validation):
             y_mix, y_mix_decoded = model_step(device, model, spec_example)
-            loss, diff_loss = loss_fn(device, y_mix, y_mix_decoded, diff_weight)
+            loss = loss_fn(device, y_mix, y_mix_decoded)
 
             tot_loss += loss.detach()
-            tot_diff_loss += diff_loss.detach()
 
             # update pbar
             # validation.set_postfix(loss=loss.item())
 
     # visualize epochs with Tensorboard
     validation_loss = tot_loss / len(validation_loader)
-    validation_diff_loss = tot_diff_loss / len(validation_loader)
 
     metric_dict = {
         "Validation/loss": validation_loss,
-        "Validation/diff loss": validation_diff_loss,
     }
 
     # add hyperparameters
@@ -266,19 +241,17 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     MRP_dir = str(Path(script_dir).parents[3])    # TODO: same as src_dir?
     dataset_dir = os.path.join(MRP_dir, 'data/bday_dataset/dataset')
-    # dataset_dir = os.path.join(MRP_dir, 'data/christmas_dataset/clipped_dataset')
-    # dataset_dir = os.path.join(MRP_dir, 'data/christmas_dataset/cut_dataset')
-    save_model_dir = os.path.join(MRP_dir, 'src/neural_nets/saved_models')
-    log_dir = os.path.join(MRP_dir, 'src/neural_nets/runs')
+    save_model_dir = os.path.join(MRP_dir, 'src/neural_nets/saved_models_final')
+    log_dir = os.path.join(MRP_dir, 'src/neural_nets/runs_final')
 
     # make save directory if not present
     if not os.path.isdir(save_model_dir):
         os.mkdir(save_model_dir)
 
     params = dict(
-        name='MRAE_d_interp',
+        name='MRAE',
 
-        gpu=1,
+        gpu=0,
 
         ds_params={
             'batch_size': 32,
@@ -302,7 +275,7 @@ def main():
                 start_epoch=0,
                 end_epoch=1,
                 start_weight=0,
-                end_weight=1
+                end_weight=0
             ),
         },
 

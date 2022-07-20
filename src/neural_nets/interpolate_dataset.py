@@ -59,19 +59,24 @@ def interpolate_y_mixs(y_mixs):
     return interp_y_mixs
 
 
-def interpolate_example(scaled_example):
+def interpolate_example(scaled_example, time_series=False):
     interp_example = copy.deepcopy(scaled_example)
     interp_example['inputs']['y_mix_ini'] = interpolate_y_mixs(scaled_example['inputs']['y_mix_ini'])
-    interp_example['outputs']['y_mix'] = interpolate_y_mixs(scaled_example['outputs']['y_mix'])
+
+    if time_series:
+        for i_y_mix in range(interp_example['outputs']['y_mixs'].shape[0]):    # (steps, height_layers, num_species)
+            interp_example['outputs']['y_mixs'][i_y_mix, :, :] = interpolate_y_mixs(interp_example['outputs']['y_mixs'][i_y_mix, :, :])
+    else:
+        interp_example['outputs']['y_mix'] = interpolate_y_mixs(scaled_example['outputs']['y_mix'])
     return interp_example
 
 
 def interpolate_torch_file(params):
-    torch_file, interp_ds_dir, scaling_dict = params
+    torch_file, interp_ds_dir, scaling_dict, time_series = params
     example = torch.load(torch_file)
 
     scaled_example = scale_example(example, scaling_dict, nans=True)
-    interp_example = interpolate_example(scaled_example)
+    interp_example = interpolate_example(scaled_example, time_series=time_series)
 
     torch_filename = os.path.basename(torch_file)
     interp_torch_file = os.path.join(interp_ds_dir, torch_filename)
@@ -80,7 +85,7 @@ def interpolate_torch_file(params):
     return 0
 
 
-def interpolate_dataset(ds_dir, parallel=True):
+def interpolate_dataset(ds_dir, num_workers, time_series=False):
     interp_ds_dir = os.path.join(ds_dir, 'interpolated_dataset')
 
     # remake the config directory
@@ -95,9 +100,8 @@ def interpolate_dataset(ds_dir, parallel=True):
 
     torch_files = glob.glob(os.path.join(ds_dir, '*.pt'))
 
-    if parallel:
-        mp_params = [(torch_file, interp_ds_dir, scaling_dict) for torch_file in torch_files]
-        num_workers = mp.cpu_count() - 1
+    if num_workers > 1:
+        mp_params = [(torch_file, interp_ds_dir, scaling_dict, time_series) for torch_file in torch_files]
 
         print(f'running with {num_workers} workers...')
         with mp.get_context("spawn").Pool(processes=num_workers) as pool:
@@ -115,9 +119,9 @@ def main():
     # setup directories
     script_dir = os.path.dirname(os.path.abspath(__file__))
     MRP_dir = str(Path(script_dir).parents[1])
-    dataset_dir = os.path.join(MRP_dir, 'data/bday_dataset/dataset')
+    dataset_dir = os.path.join(MRP_dir, 'data/bday_dataset/time_series_dataset')
 
-    interpolate_dataset(dataset_dir, parallel=True)
+    interpolate_dataset(dataset_dir, num_workers=mp.cpu_count() - 1, time_series=True)
 
 
 if __name__ == '__main__':

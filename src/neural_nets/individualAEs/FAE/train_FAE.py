@@ -93,6 +93,9 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
                                                                      os.path.join(dataset_dir, 'interpolated_dataset/'),
                                                                      **params['ds_params'])
 
+    # save validation indices
+    torch.save(validation_loader.dataset.indices, os.path.join(save_model_dir, f'{model_name}_validation_indices.pt'))
+
     # get scaling parameters
     scaling_file = os.path.join(dataset_dir, 'scaling_dict.pkl')
     with open(scaling_file, 'rb') as f:
@@ -208,6 +211,9 @@ def train_autoencoder(dataset_dir, save_model_dir, log_dir, params):
             best_loss = avg_test_loss
             best_model_params = model.state_dict().copy()
 
+            # save the model
+            torch.save(best_model_params, os.path.join(save_model_dir, f'{model_name}_state_dict'))
+
     # load best model params
     model.load_state_dict(best_model_params)
 
@@ -260,10 +266,8 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     MRP_dir = str(Path(script_dir).parents[3])    # TODO: same as src_dir?
     dataset_dir = os.path.join(MRP_dir, 'data/bday_dataset/dataset')
-    # dataset_dir = os.path.join(MRP_dir, 'data/christmas_dataset/clipped_dataset')
-    # dataset_dir = os.path.join(MRP_dir, 'data/christmas_dataset/cut_dataset')
-    save_model_dir = os.path.join(MRP_dir, 'src/neural_nets/saved_models')
-    log_dir = os.path.join(MRP_dir, 'src/neural_nets/runs')
+    save_model_dir = os.path.join(MRP_dir, 'src/neural_nets/saved_models_final')
+    log_dir = os.path.join(MRP_dir, 'src/neural_nets/runs_final')
 
     # make save directory if not present
     if not os.path.isdir(save_model_dir):

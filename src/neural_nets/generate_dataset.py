@@ -31,6 +31,7 @@ sys.path.append(src_dir)
 from src.vulcan_configs.vulcan_config_utils import CopyManager
 from src.neural_nets.dataset_utils import unscale_example, create_scaling_dict, scale_dataset
 from src.neural_nets.dataloaders import SingleVulcanDataset
+from src.neural_nets.interpolate_dataset import interpolate_dataset
 
 # TODO: don't know if this is nescessary
 # Limiting the number of threads
@@ -272,13 +273,37 @@ def generate_output(vul_file, mode):
     return outputs
 
 
+def generate_output_time(vul_file, mode):
+    # extract data
+    with open(vul_file, 'rb') as handle:
+        data = pickle.load(handle)
+
+    y_time = data['variable']['y_time']    # (256, 150, 69)
+
+    # 10 evenly spaced integers including first and last, but ignore first time as it is practically t=0
+    idx = np.round(np.linspace(0, y_time.shape[0] - 1, 11)[1:]).astype(int)    # (10,)
+    y_t = y_time[idx, :, :]  # (10, 150, 69)
+    total_abundances = np.sum(y_t, axis=-1)  # (10, 150)
+    y_mixs = y_t / np.tile(total_abundances[..., None], y_t.shape[-1])  # (10, 150, 69)
+
+    if mode == 'clipped':
+        # clipping of values
+        y_mix = np.where(y_mixs < 1e-14, 1e-14, y_mixs)
+
+    outputs = {
+        "y_mixs": torch.from_numpy(y_mixs)    # (150, 69)
+    }
+
+    return outputs
+
+
 def generate_input_output_pair(params):
     """
     Generate simulation input and output pair.
     """
 
     # extract params
-    (i, config_file, copy_manager, output_dir, dataset_dir, mode) = params
+    (i, config_file, copy_manager, output_dir, dataset_dir, mode, time_series) = params
 
     # get available VULCAN dir copy
     available_dir = copy_manager.get_available_copy()
@@ -306,7 +331,11 @@ def generate_input_output_pair(params):
 
     # generate output tensor
     vul_file = os.path.join(output_dir, f'output_{cf_name[11:-3]}.vul')
-    outputs = generate_output(vul_file, mode)
+
+    if time_series:
+        outputs = generate_output_time(vul_file, mode)
+    else:
+        outputs = generate_output(vul_file, mode)
 
     # save example
     example = {
@@ -345,9 +374,10 @@ def main(num_workers, generate=True):
     VULCAN_dir = os.path.join(git_dir, 'VULCAN')
 
     mode = ''    # '', 'clipped', 'cut'
+    time_series = True
 
     if mode == '':
-        dataset_dir = os.path.join(git_dir, 'MRP/data/bday_dataset/dataset')
+        dataset_dir = os.path.join(git_dir, 'MRP/data/bday_dataset/time_series_dataset')
     else:
         dataset_dir = os.path.join(git_dir, f'MRP/data/bday_dataset/{mode}_dataset')
 
@@ -367,7 +397,8 @@ def main(num_workers, generate=True):
         mp_copy_manager = manager.CopyManager(num_workers, VULCAN_dir)
 
         # setup_mp_params
-        mp_params = [(i, config_file, mp_copy_manager, output_dir, dataset_dir, mode) for i, config_file in enumerate(config_files)]
+        mp_params = [(i, config_file, mp_copy_manager, output_dir, dataset_dir, mode, time_series)
+                     for i, config_file in enumerate(config_files)]
 
         # run parallel
         print(f'running with {num_workers} workers...')
@@ -405,15 +436,9 @@ def main(num_workers, generate=True):
     with open(species_list_file, 'wb') as f:
         pickle.dump(spec_list, f)
 
+    interpolate_dataset(dataset_dir, num_workers=num_workers, time_series=time_series)
+
 
 if __name__ == "__main__":
-    # parse arguments
-    parser = argparse.ArgumentParser(description='Run the vulcan configurations')
-    parser.add_argument('-w', '--workers', help='Number of multiprocessing-subprocesses', type=int, default=mp.cpu_count() - 1,
-                        required=False)
-    parser.add_argument('-g', '--generate', help='regenerate dataset?', type=bool, default=True,
-                        required=False)
-    args = vars(parser.parse_args())
-
     # run main
-    main(num_workers=args['workers'], generate=args['generate'])
+    main(num_workers=mp.cpu_count() - 1, generate=True)

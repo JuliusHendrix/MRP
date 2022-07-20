@@ -11,8 +11,12 @@ import shutil
 zero_value = torch.tensor(1e-45).double()
 inf_value = torch.tensor(1e38).double()
 
+# same_scale_items = np.array([
+#     ['inputs', 'y_mix_ini', 'outputs', 'y_mix']
+# ])
+
 same_scale_items = np.array([
-    ['inputs', 'y_mix_ini', 'outputs', 'y_mix']
+    ['inputs', 'y_mix_ini', 'outputs', 'y_mixs']
 ])
 
 

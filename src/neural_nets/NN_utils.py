@@ -301,6 +301,12 @@ def plot_variable(x, y, y_o, scales, model_name, xlabel, ylabel, xlog=False, ylo
     return fig
 
 
+# from : https://towardsdatascience.com/weight-decay-and-its-peculiar-effects-66e0aee3e7b8
+# and: https://arxiv.org/abs/1711.05101
+def weight_decay(lam_norm, batch_size, num_training_points, num_epochs):
+    return lam_norm * np.sqrt( batch_size / (num_training_points * num_epochs) )
+
+
 if __name__ == "__main__":
     # calculate_padding(input_shape=(150, 69),
     #                   kernel_size=(4, 1),

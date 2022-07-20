@@ -18,8 +18,8 @@ def main():
     dataset_dir = os.path.join(MRP_dir, 'data/bday_dataset/dataset')
     # dataset_dir = os.path.join(MRP_dir, 'data/christmas_dataset/clipped_dataset')
     # dataset_dir = os.path.join(MRP_dir, 'data/christmas_dataset/cut_dataset')
-    save_model_dir = os.path.join(MRP_dir, 'src/neural_nets/saved_models')
-    log_dir = os.path.join(MRP_dir, 'src/neural_nets/runs')
+    save_model_dir = os.path.join(MRP_dir, 'src/neural_nets/saved_models_final')
+    log_dir = os.path.join(MRP_dir, 'src/neural_nets/runs_final')
 
     # make save directory if not present
     if not os.path.isdir(save_model_dir):
@@ -39,7 +39,8 @@ def main():
 
         model_params={
             'latent_dim': 2,
-            'layer_size': 256
+            'layer_size': 256,
+            'activation_function': 'tanh',
         },
 
         optimizer_params={
@@ -50,8 +51,8 @@ def main():
             'LossWeightScheduler_d': LossWeightScheduler(
                 start_epoch=20,
                 end_epoch=70,
-                start_weight=0.1,
-                end_weight=1e3
+                start_weight=0,
+                end_weight=0
             ),
         },
 
