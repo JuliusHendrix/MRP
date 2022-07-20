@@ -17,6 +17,9 @@ sys.path.append(src_dir)
 
 from src.vulcan_configs.vulcan_config_utils import make_valid_parameter_grid, calculate_TP
 
+colors = [
+'#065e60', '#0a9396', '#99d5c9', '#ee9b00', '#ffb833', '#99d6ff', '#0093f5', '#00568f'
+]
 
 def plot_config_ranges(MRP_dir):
     sflux_dir = os.path.join(MRP_dir, 'src/stellar_spectra/output')
@@ -98,6 +101,19 @@ def plot_config_ranges(MRP_dir):
 
 
 def plot_TP(configs_dir):
+    # Set general font size
+    SMALL_SIZE = 14
+    MEDIUM_SIZE = 16
+    BIGGER_SIZE = 22
+
+    plt.rc('font', size=SMALL_SIZE)  # controls default text sizes
+    plt.rc('axes', titlesize=MEDIUM_SIZE)  # fontsize of the axes title
+    plt.rc('axes', labelsize=MEDIUM_SIZE)  # fontsize of the x and y labels
+    plt.rc('xtick', labelsize=SMALL_SIZE)  # fontsize of the tick labels
+    plt.rc('ytick', labelsize=SMALL_SIZE)  # fontsize of the tick labels
+    plt.rc('legend', fontsize=SMALL_SIZE)  # legend fontsize
+    plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+
     configs = glob.glob(os.path.join(configs_dir, '*.py'))
     random_config = np.random.choice(configs)
 
@@ -109,17 +125,26 @@ def plot_TP(configs_dir):
 
     plt.figure(figsize=(4,5))
 
-    plt.plot(Tco, Pco*1e-6, color='darkblue')
-    plt.xlabel('Temperature (K)')
-    plt.ylabel('Pressure (bar)')
+    plt.plot(Tco, Pco*1e-6, color=colors[3])
+    plt.xlabel('Temperature [K]')
+    plt.ylabel('Pressure [bar]')
     plt.gca().invert_yaxis()
     # plt.xscale('log')
     plt.yscale('log')
 
-    plt.title(f'r_star = {random_config_m.r_star:.2} $R_\odot$\n'
-              f'orbit radius = {random_config_m.orbit_radius:.2} au\n'
-              f'planet_mass={random_config_m.planet_mass:.2} M$_{{Jup}}$')
+    plt.title("Analytical TP-profile\n"
+              rf"$R_* = {random_config_m.r_star:.1f}$ R$_{{Sun}}$, "
+              rf"$r = {random_config_m.orbit_radius:.1f}$ AU, "
+              rf"$M_P = {random_config_m.planet_mass:.1f}$ M$_{{Jup}}$"
+              )
 
+        # rf'r_star = {random_config_m.r_star:.2} $R_{Sun}$'
+        #       f'orbit radius = {random_config_m.orbit_radius:.2} au\n'
+        #       f'planet_mass={random_config_m.planet_mass:.2} M$_{{Jup}}$')
+
+    plt.savefig(
+        'random_images/TP_profile.pdf',
+        bbox_inches='tight',)
     plt.tight_layout()
     plt.show()
 
@@ -131,8 +156,8 @@ def main():
     configs_dir = os.path.join(MRP_dir, 'data/configs')
     output_dir_vulcan = '../../MRP/data/vulcan_output/'    # vulcan needs a relative dir...
 
-    plot_config_ranges(MRP_dir)
-    # plot_TP(configs_dir)
+    # plot_config_ranges(MRP_dir)
+    plot_TP(configs_dir)
 
 
 if __name__ == "__main__":

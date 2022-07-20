@@ -32,7 +32,6 @@ const_mix = {'CH4':2.7761E-4*2, 'O2':4.807e-4, 'He':0.09691, 'N2':8.1853E-5, 'H2
 # ====== Setting up photochemistry ======
 use_photo = True
 # astronomy input
-# TODO: does 48 deg make sense?
 sl_angle = 48 /180.*3.14159 # the zenith angle of the star in degree (usually 58 deg for the dayside average)
 f_diurnal = 1. # to account for the diurnal average of solar flux (i.e. 0.5 for Earth; 1 for tidally-locked planets)
 scat_sp = ['H2', 'He'] # the bulk gases that contribute to Rayleigh scattering
@@ -64,7 +63,6 @@ use_Kzz = True
 use_moldiff = True
 use_vz = False
 atm_type = 'analytical'  # Options: 'isothermal', 'analytical', 'file', or 'vulcan_ini' 'table'
-# TODO: pick value / value range?
 Kzz_prof = 'const' # Options: 'const','file' or 'Pfunc' (Kzz increased with P^-0.4)
 const_Kzz = 1.E10 # (cm^2/s) Only reads when use_Kzz = True and Kzz_prof = 'const'
 

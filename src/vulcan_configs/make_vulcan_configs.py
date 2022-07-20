@@ -81,6 +81,12 @@ def main():
     os.mkdir(sflux_dir)
 
     # setup parameter ranges and intervals
+    # parameter_ranges = dict(
+    #     orbit_radius=np.linspace(0.01, 0.5, 20) * u.AU,    # AU, circular orbit
+    #     planet_mass=np.linspace(0.5, 5, 20) * u.Mjup,    # Mjup
+    #     r_star=np.linspace(1, 1.5, 20) * u.Rsun,   # Rsun   # values same as fit
+    # )
+
     parameter_ranges = dict(
         orbit_radius=np.linspace(0.01, 0.5, 20) * u.AU,    # AU, circular orbit
         planet_mass=np.linspace(0.5, 5, 20) * u.Mjup,    # Mjup

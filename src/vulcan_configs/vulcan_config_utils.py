@@ -23,7 +23,7 @@ def analytic_MR(M):
     """
     M_earth = u.Mjup.to(u.Mearth, M)
 
-    if M_earth < 120:
+    if M_earth < 120:   # not used, 0.5 Mjup > 120 Mearth
         # Eq. 1 https://www.aanda.org/articles/aa/pdf/2020/02/aa36482-19.pdf
         R_earth = 0.70 * M_earth ** 0.63
     else:

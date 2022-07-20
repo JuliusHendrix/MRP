@@ -85,7 +85,7 @@ def main():
     # output_dir = os.path.expanduser('/data/vulcan_output_parallel/')
     script_dir = os.path.dirname(os.path.abspath(__file__))
     MRP_dir = str(Path(script_dir).parents[1])
-    output_dir = os.path.join(MRP_dir, 'data/vulcan_output_parallel')
+    output_dir = os.path.join(MRP_dir, 'data/bday_dataset/vulcan_output')
     plot_base_dir = os.path.join(output_dir, 'plots/')
     plot_dir = os.path.join(plot_base_dir, 'mixing_ratios/')
 

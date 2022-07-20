@@ -15,7 +15,7 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 src_dir = str(Path(script_dir).parents[1])
 sys.path.append(src_dir)
 
-from src.neural_nets.dataset_utils import VulcanDataset, unscale_example
+from src.neural_nets.dataset_utils import SingleVulcanDataset, unscale_example
 
 
 def scale_prop(prop):
@@ -28,7 +28,7 @@ def scale_prop(prop):
 
 def test_scales(dataset_dir):
     # dataset loader
-    vulcan_dataset = VulcanDataset(dataset_dir)
+    vulcan_dataset = SingleVulcanDataset(dataset_dir)
     dataloader = DataLoader(vulcan_dataset, batch_size=1,
                             shuffle=True,
                             num_workers=0)
@@ -77,7 +77,7 @@ def test_scales(dataset_dir):
 
 def save_dataset_distributions(dataset_dir, mode='mean'):
     # dataset loader
-    vulcan_dataset = VulcanDataset(dataset_dir)
+    vulcan_dataset = 0(dataset_dir)
     dataloader = DataLoader(vulcan_dataset, batch_size=1,
                             shuffle=True,
                             num_workers=0)
@@ -117,7 +117,7 @@ def save_dataset_distributions(dataset_dir, mode='mean'):
                 agg_dict[top_key][key] = np.median(value, axis=-1)
 
     # save dict
-    agg_dict_file = f'{mode}_dict.pkl'
+    agg_dict_file = f'agg_dicts/{mode}_dict.pkl'
     with open(agg_dict_file, 'wb') as f:
         pickle.dump(agg_dict, f)
 
@@ -128,7 +128,7 @@ def plot_dataset_distributions(dataset_dir, mode='mean'):
     import matplotlib.gridspec as gridspec
 
     # get agg dict
-    agg_dict_file = f'{mode}_dict.pkl'
+    agg_dict_file = f'agg_dicts/{mode}_dict.pkl'
     with open(agg_dict_file, 'rb') as f:
         agg_dict = pickle.load(f)
 
@@ -148,17 +148,10 @@ def plot_dataset_distributions(dataset_dir, mode='mean'):
 
     # get y_ini_mix
     y_mix_ini = agg_dict['inputs']['y_mix_ini'].swapaxes(0, 1)
-    if mode=='mean':
+    if mode == 'mean':
         y_mix_ini_mean_height = np.mean(y_mix_ini, axis=1)
-    if mode=='median':
+    if mode == 'median':
         y_mix_ini_mean_height = np.median(y_mix_ini, axis=1)
-
-    # TEST TEST
-    inds = np.where(y_mix_ini_mean_height > 1e-30)[0]
-    print(f'{len(inds) = }')
-    spec_list = spec_list[inds]
-    y_mix_ini_mean_height = y_mix_ini_mean_height[inds]
-    y_mix_ini = y_mix_ini[inds]
 
     y_inds = y_mix_ini_mean_height.argsort()
     y_mix_ini = y_mix_ini[y_inds[::-1], :]
@@ -259,13 +252,14 @@ def main():
     # setup directories
     script_dir = os.path.dirname(os.path.abspath(__file__))
     MRP_dir = str(Path(script_dir).parents[1])
-    # dataset_dir = os.path.join(MRP_dir, 'data/bday_dataset/dataset')
-    dataset_dir = os.path.join(MRP_dir, 'data/christmas_dataset/wavelength_dataset')
+    dataset_dir = os.path.join(MRP_dir, 'data/bday_dataset/dataset')
+    # dataset_dir = os.path.join(MRP_dir, 'data/christmas_dataset/wavelength_dataset')
+    # dataset_dir = os.path.join(MRP_dir, 'data/christmas_dataset/cut_dataset')
     # dataset_dir = os.path.join(MRP_dir, 'data/christmas_dataset/clipped_dataset')
 
     # test_scales(dataset_dir)
     mode = 'median'
-    # save_dataset_distributions(dataset_dir, mode=mode)
+    save_dataset_distributions(dataset_dir, mode=mode)
     plot_dataset_distributions(dataset_dir, mode=mode)
 
 
