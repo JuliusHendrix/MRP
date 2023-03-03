@@ -36,8 +36,13 @@ def save_core_performance(device, params, dataset_dir, save_model_dir, time_only
     ).double().to(device)
 
     # Initialize models with double precision
-    ae_models = initialize_models(device, ae_params['models'], ae_params['state_dicts'], ae_params['model_params'],
-                                  save_model_dir)
+    ae_models = initialize_models(
+        device,
+        ae_params['models'],
+        ae_params['state_dicts'],
+        ae_params['model_params'],
+        save_model_dir
+    )
 
     # get model name
     hparams = {}
@@ -59,9 +64,12 @@ def save_core_performance(device, params, dataset_dir, save_model_dir, time_only
     else:
         validation_dataset = Subset(vulcan_dataset, validation_indices)
 
-    dataloader = DataLoader(validation_dataset, batch_size=1,
-                            shuffle=True,
-                            num_workers=0)
+    dataloader = DataLoader(
+        validation_dataset,
+        batch_size=1,
+        shuffle=False,
+        num_workers=0
+    )
 
     print(f'{len(dataloader)} validation examples')
 
@@ -74,6 +82,11 @@ def save_core_performance(device, params, dataset_dir, save_model_dir, time_only
     scaling_file = os.path.join(dataset_dir, 'species_list.pkl')
     with open(scaling_file, 'rb') as f:
         spec_list = pickle.load(f)
+    
+    # get index dictionary
+    index_file = os.path.join(dataset_dir, 'index_dict.pkl')
+    with open(index_file, 'rb') as f:
+        index_dict = pickle.load(f)
 
     # evaluation mode
     core_model.eval()
@@ -108,7 +121,8 @@ def save_core_performance(device, params, dataset_dir, save_model_dir, time_only
         perf_dict = {
             'actual': actual,
             'predictions': predictions,
-            'time': np.zeros((actual.shape[-1]))
+            'time': np.zeros((actual.shape[-1])),
+            'config_names': []
         }
 
     # loop through examples
@@ -135,6 +149,12 @@ def save_core_performance(device, params, dataset_dir, save_model_dir, time_only
             if not time_only:
                 perf_dict['actual'][..., i] = input_unscale
                 perf_dict['predictions'][..., i] = output_unscale
+
+                validation_idx = validation_indices[i].detach().numpy()[0]  # TODO: not tested!
+                perf_dict['config_names'].append(
+                    index_dict[str(validation_idx)]
+                )
+            
             perf_dict['time'][i] = elapsed_time
 
     # save to disk
@@ -151,7 +171,6 @@ def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     MRP_dir = str(Path(script_dir).parents[2])
     dataset_dir = os.path.join(MRP_dir, 'data/bday_dataset/time_series_dataset')
-    # dataset_dir = os.path.join(MRP_dir, 'data/bday_dataset/time_series_dataset')
     save_model_dir = os.path.join(MRP_dir, 'src/neural_nets/saved_models_final')
 
     # setup pytorch
@@ -162,7 +181,7 @@ def main():
 
     params = get_params(core_name)
 
-    save_core_performance(device, params, dataset_dir, save_model_dir, time_only=True)
+    save_core_performance(device, params, dataset_dir, save_model_dir, time_only=False)
 
 
 if __name__ == "__main__":

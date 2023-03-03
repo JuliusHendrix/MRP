@@ -17,7 +17,7 @@ ae_params = dict(
         'wae': FluxAE,
         'fae': FluxAE,
         'pae': MixingRatioAE,
-        'tae': CopyAE,  # copy bc MRAE cannot encode well for some reason
+        'tae': CopyAE,  # copy bc these AE's cannot encode well for some reason :(
         'gae': CopyAE,
     },
 
