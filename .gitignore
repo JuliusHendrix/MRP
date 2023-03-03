@@ -142,3 +142,6 @@ src/visualization/plot_core_performance/performance_dicts/
 data
 saved_models
 saved_models_final
+*.pkl
+*.png
+*.pdf
