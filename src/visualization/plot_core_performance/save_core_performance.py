@@ -150,7 +150,7 @@ def save_core_performance(device, params, dataset_dir, save_model_dir, time_only
                 perf_dict['actual'][..., i] = input_unscale
                 perf_dict['predictions'][..., i] = output_unscale
 
-                validation_idx = validation_indices[i].detach().numpy()[0]  # TODO: not tested!
+                validation_idx = validation_indices[i]
                 perf_dict['config_names'].append(
                     index_dict[str(validation_idx)]
                 )
@@ -175,6 +175,7 @@ def main():
 
     # setup pytorch
     device = torch.device("cpu")
+    torch.set_num_threads(1)
     print(f'running on device: {device}')
 
     core_name = 'LSTM'
